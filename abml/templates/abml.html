@@ -1,0 +1,10 @@
+{% block content %}
+<h1>Hello Test</h1>
+<ul>
+{% for todo in todos %}
+<li>
+    {{todo.title}}: {% if todo.completed %}Completed{%else%}Not completed{%endif%}
+</li>
+{%endfor%}
+</ul>
+{%endblock%}

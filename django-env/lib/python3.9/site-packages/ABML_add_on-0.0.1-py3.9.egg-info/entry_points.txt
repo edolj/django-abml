@@ -1,0 +1,3 @@
+[orange3.addon]
+abml = orangecontrib.abml
+

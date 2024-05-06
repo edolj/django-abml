@@ -1,0 +1,12 @@
+MANIFEST.in
+README.md
+setup.py
+ABML_add_on.egg-info/PKG-INFO
+ABML_add_on.egg-info/SOURCES.txt
+ABML_add_on.egg-info/dependency_links.txt
+ABML_add_on.egg-info/entry_points.txt
+ABML_add_on.egg-info/namespace_packages.txt
+ABML_add_on.egg-info/not-zip-safe
+ABML_add_on.egg-info/requires.txt
+ABML_add_on.egg-info/top_level.txt
+orangecontrib/__init__.py
