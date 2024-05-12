@@ -86,7 +86,8 @@ def learnerAndLearningData():
     learner.calculate_evds(learning_data)
 
     return learner, learning_data
-    
+
+# http://localhost:8000/api/learning-rules/    
 def learningRules():
     learner, learning_data = learnerAndLearningData()
     classifier = learner(learning_data)
@@ -103,12 +104,23 @@ def learningRules():
     
     return rules_data
 
+# http://localhost:8000/api/critical-instances/
 def criticalInstances():
     learner, learning_data = learnerAndLearningData()
     crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
 
     # Extract the critical example from the original dataset
     critical_instances = learning_data[crit_ind]
+    domains = [str(element) for element in critical_instances.domain]
+
+    pairs = []
+    detail_data = []
+    for instance in critical_instances[-5:]:
+        for d in domains:
+            pairs.append((d, str(instance[d])))
+        detail_data.append(pairs)
+        pairs = []
+    
     critical_instances_list = []
     for index, instance in enumerate(critical_instances[-5:]):
         critical_instances_list.append({
@@ -116,8 +128,9 @@ def criticalInstances():
             "credit_score": str(instance["credit.score"]),
             "activity_ime": str(instance["activity.ime"])
         })
-    return critical_instances_list
+    return critical_instances_list, detail_data
 
+# http://localhost:8000/api/counter-examples/
 def getCriticalExamples(critical_index, user_argument, sign):
     learner, learning_data = learnerAndLearningData()
     if user_argument not in learning_data.domain:
