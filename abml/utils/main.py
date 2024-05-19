@@ -116,7 +116,7 @@ def criticalInstances():
     pairs = []
     detail_data = []
     for instance in critical_instances[-5:]:
-        for d in domains:
+        for d in domains[:-1]:
             pairs.append((d, str(instance[d])))
         detail_data.append(pairs)
         pairs = []
@@ -155,7 +155,7 @@ def getCriticalExamples(critical_index, user_argument, sign):
     if len(counters) > 0:
         counter_examples = learning_data[list(counters)]
         for counterEx in counter_examples:
-            critical_examples.append({"activity_ime": str(counterEx["activity.ime"])})
+            critical_examples.append({"activity_ime": str(counterEx["activity.ime"]), "net_sales": str(counterEx["net.sales"])})
         else:
             print("No counter examples found for the analyzed example.")
 
