@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*- 
 __author__ = 'edo'
 
-import os, json
+import os
 from Orange.data import Table
 from Orange.classification.rules import Rule, Selector
 from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentation
@@ -25,13 +25,20 @@ def addArgumentToColumn(row_index, argument_to_add):
     with open(file_path, "r") as file:
         rows = file.readlines()
 
+    # Get the header row and find the index of the 'Arguments' column
+    header = rows[0].rstrip().split('\t')
+    try:
+        arguments_index = header.index("Arguments")
+    except ValueError:
+        return False  # If 'Arguments' column is not found
+
     # Check if the row index is within the range of rows
     if 0 <= row_index < len(rows):
         # Split the row into columns using tab as delimiter
         columns = rows[row_index].rstrip().split('\t')
 
-        # Add the string to the last column
-        columns.append(argument_to_add)
+        # Append the argument_to_add value to the "Arguments" column
+        columns[arguments_index] += argument_to_add
 
         # Join the columns back into a row with tabs as delimiter
         updated_row = '\t'.join(columns) + '\n'
@@ -42,10 +49,11 @@ def addArgumentToColumn(row_index, argument_to_add):
         # Write the updated contents back to the .tab file
         with open(file_path, "w") as file:
             file.writelines(rows)
+        return True
     else:
-        print("Row index out of range.")
+        return False
 
-def removeArgumentFromColumn(row_index):
+def removeArgumentFromColumn(row_index, argument_to_remove):
     path = os.getcwd() + "/abml/utils/"
     file_path = path + "bonitete_tutor.tab"
 
@@ -53,27 +61,36 @@ def removeArgumentFromColumn(row_index):
     with open(file_path, "r") as file:
         rows = file.readlines()
 
-    # Check if the row index is within the range of rows
-    if 0 <= row_index < len(rows):
+    # Check if the row index is within the range of rows (excluding the header row)
+    if 0 < row_index < len(rows):
+        # Split the header row into columns to find the "Arguments" column index
+        header_columns = rows[0].rstrip().split('\t')
+        if "Arguments" not in header_columns:
+            print("Arguments column not found in the header.")
+            return
+
+        arguments_column_index = header_columns.index("Arguments")
+
         # Split the row into columns using tab as delimiter
         columns = rows[row_index].rstrip().split('\t')
 
-        # Check if there are arguments to remove
-        if len(columns) > 1:
-            # Remove the last argument
-            columns.pop()
-
-            # Join the columns back into a row with tabs as delimiter
-            updated_row = '\t'.join(columns) + '\n'
-
-            # Update the specific row in the rows list
-            rows[row_index] = updated_row
-
-            # Write the updated contents back to the .tab file
-            with open(file_path, "w") as file:
-                file.writelines(rows)
+        # Remove the argument_to_remove value from the "Arguments" column
+        arguments = columns[arguments_column_index].split(', ')
+        if argument_to_remove in arguments:
+            arguments.remove(argument_to_remove)
+            columns[arguments_column_index] = ', '.join(arguments)
         else:
-            print("No argument to remove from the specified row.")
+            print(f"Argument '{argument_to_remove}' not found in the 'Arguments' column.")
+
+        # Join the columns back into a row with tabs as delimiter
+        updated_row = '\t'.join(columns) + '\n'
+
+        # Update the specific row in the rows list
+        rows[row_index] = updated_row
+
+        # Write the updated contents back to the .tab file
+        with open(file_path, "w") as file:
+            file.writelines(rows)
     else:
         print("Row index out of range.")
         
@@ -104,6 +121,13 @@ def learningRules():
     
     return rules_data
 
+def get_categorical_and_numerical_attributes(domain):
+    categorical_and_numerical_attributes = []
+    for attribute in domain:
+        if attribute.is_continuous or attribute.is_discrete:
+            categorical_and_numerical_attributes.append(str(attribute))
+    return categorical_and_numerical_attributes
+
 # http://localhost:8000/api/critical-instances/
 def criticalInstances():
     learner, learning_data = learnerAndLearningData()
@@ -111,7 +135,7 @@ def criticalInstances():
 
     # Extract the critical example from the original dataset
     critical_instances = learning_data[crit_ind]
-    domains = [str(element) for element in critical_instances.domain]
+    domains = get_categorical_and_numerical_attributes(critical_instances.domain)
 
     pairs = []
     detail_data = []
@@ -134,30 +158,34 @@ def criticalInstances():
 def getCriticalExamples(critical_index, user_argument, sign):
     learner, learning_data = learnerAndLearningData()
     if user_argument not in learning_data.domain:
-        return "Not correct argument"
+        return {"error": "Not correct argument"}
     
     getIndex = learning_data.domain.index(user_argument)
     attribute = learning_data.domain[getIndex]
     if attribute.is_continuous:
         if sign not in (">=", "<="):
-            return "Not correct argument.. missing high, low"
+            return {"error": "Not correct argument.. missing high, low"}
         user_argument += sign
 
     # change it to format {argument}
     formatedArg = "{{{}}}".format(user_argument)
     # add argument to argument column in row critical_index
-    addArgumentToColumn(critical_index + 3, formatedArg)
+    if not addArgumentToColumn(critical_index + 3, formatedArg):
+        return {"error": "Failed to add argument to column"}
+    
     learner, learning_data = learnerAndLearningData()
-
     counters, counters_vals, rule, prune = argumentation.analyze_argument(learner, learning_data, critical_index)
     
     critical_examples = []
     if len(counters) > 0:
         counter_examples = learning_data[list(counters)]
         for counterEx in counter_examples:
-            critical_examples.append({"activity_ime": str(counterEx["activity.ime"]), "net_sales": str(counterEx["net.sales"])})
-        else:
-            print("No counter examples found for the analyzed example.")
+            critical_examples.append({
+                "activity_ime": str(counterEx["activity.ime"]),
+                "net_sales": str(counterEx["net.sales"])
+            })
+    else:
+        return {"message": "No counter examples found for the analyzed example."}
 
     return critical_examples
 
@@ -233,7 +261,7 @@ def main():
             # change it to format {argument}
             formatedArg = "{{{}}}".format(user_argument)
             # add argument to argument column in row critical_index
-            addArgumentToColumn(file_path, critical_index + 3, formatedArg)
+            addArgumentToColumn(critical_index + 3, formatedArg)
             learning_data = Table(file_path)
             learner = abrules.ABRuleLearner()
             learner.calculate_evds(learning_data)
@@ -255,7 +283,7 @@ def main():
                 if inp in ('c', 'd'):
                     break
             if inp == 'c':
-                removeArgumentFromColumn(file_path, critical_index + 3)
+                removeArgumentFromColumn(critical_index + 3, formatedArg)
             if inp == 'd':
                 # show which critical example was done in this iteration
                 critical_instance = learning_data[critical_index]

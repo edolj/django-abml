@@ -29,7 +29,12 @@ def counter_examples(request):
             high_low = data.get('highLow')
 
             counterExamples = getCriticalExamples(index, user_argument, high_low)
-            return JsonResponse({'counterExamples': counterExamples})
+            if "error" in counterExamples:
+                return JsonResponse({'error': counterExamples["error"]}, status=400)
+            elif "message" in counterExamples:
+                return JsonResponse({'message': counterExamples["message"]})
+            else:
+                return JsonResponse({'counterExamples': counterExamples})
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON format'}, status=400)
     else:
