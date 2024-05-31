@@ -140,7 +140,7 @@ def criticalInstances():
     pairs = []
     detail_data = []
     for instance in critical_instances[-5:]:
-        for d in domains[:-1]:
+        for d in domains:
             pairs.append((d, str(instance[d])))
         detail_data.append(pairs)
         pairs = []
@@ -148,7 +148,7 @@ def criticalInstances():
     critical_instances_list = []
     for index, instance in enumerate(critical_instances[-5:]):
         critical_instances_list.append({
-            "index": index+1,
+            "critical_index": str(crit_ind[index]),
             "credit_score": str(instance["credit.score"]),
             "activity_ime": str(instance["activity.ime"])
         })
