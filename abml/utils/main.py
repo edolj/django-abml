@@ -148,9 +148,10 @@ def criticalInstances():
     critical_instances_list = []
     for index, instance in enumerate(critical_instances[-5:]):
         critical_instances_list.append({
-            "critical_index": str(crit_ind[index]),
+            "critical_index": str(crit_ind[-5:][index]),
+            "problematic": str(round(problematic[-5:][index], 3)),
             "credit_score": str(instance["credit.score"]),
-            "activity_ime": str(instance["activity.ime"])
+            "id": str(instance["id"])
         })
     return critical_instances_list, detail_data
 
