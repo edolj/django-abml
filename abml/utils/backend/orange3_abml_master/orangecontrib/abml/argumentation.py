@@ -3,7 +3,9 @@
 
 import numpy as np
 import Orange
+from . import abrules
 from Orange.data import Table
+from Orange.classification.rules import Rule, Selector
 from sklearn.model_selection import StratifiedKFold
 from scipy.spatial.distance import pdist, squareform
 
@@ -173,4 +175,72 @@ def analyze_argument(learner, data, index):
             tmp_rule.create_model()
             prune.append((tmp_rule, relative_freq(tmp_rule)))
 
-    return counters, counters_vals, rule, prune
+    # Determine the best pruned rule based on relative frequency
+    best_pruned_rule, best_pruned_score = max(prune, key=lambda x: x[1])
+
+    # Extending the full rule with new attributes
+    unused_attributes = get_unused_attributes(full_rule, data)
+    extended_rules = generateExtendedRules(full_rule, unused_attributes, data, index)
+    evaluated_extended_rules = evaluate_rules(extended_rules, X, Y, W, rule.target_class)
+    # Determine the best extended rule based on relative frequency
+    best_extended_rule, best_extended_score = max(evaluated_extended_rules, key=lambda x: x[1])
+
+    # ext rule has better quality
+    if best_pruned_score < best_extended_score:
+        best_rule = best_extended_rule
+    else:
+        best_rule = best_pruned_rule
+
+    return counters, counters_vals, rule, prune, best_rule
+
+def get_unused_attributes(rule, data):
+    attUsed = []
+    for sel in rule.selectors:
+        attUsed.append(data.domain[sel.column])
+
+    class_var = data.domain.class_var
+    attributes = get_categorical_and_numerical_attributes(data.domain)
+    filtered_attributes = [attr for attr in attributes if attr not in attUsed and attr != class_var]
+
+    return filtered_attributes
+
+def generateExtendedRules(rule, unused_att, data, index):
+    generate_att = []
+    for att in unused_att:
+        if att.is_continuous:
+            generate_att.append(att.name+"<=")
+            generate_att.append(att.name+">=")
+        elif att.is_discrete:
+            generate_att.append(att.name)
+
+    ext_rules = []
+    for att in generate_att:
+        column, op, value = abrules.ABRuleLearner.parse_constraint(att, data, index)
+        if isinstance(value, str):
+            if op == ">=":
+                value = np.min(data.X[column])
+            else:
+                value = np.max(data.X[column])
+        selector = Selector(column=column, op=op, value=value)
+        new_rule = Rule(selectors=[selector]+rule.selectors, domain=data.domain)
+        ext_rules.append(new_rule)
+    
+    return ext_rules
+
+def evaluate_rules(rules, X, Y, W, target_class):
+    evaluated_rules = [(None, 0)]
+    for rule in rules:
+        rule.filter_and_store(X, Y, W, target_class)
+        rule.create_model()
+        score = relative_freq(rule)
+        if score != 1.0: # not overfit
+            evaluated_rules.append((rule, score))
+    return evaluated_rules
+
+def get_categorical_and_numerical_attributes(domain):
+    categorical_and_numerical_attributes = []
+    for attribute in domain:
+        if attribute.is_continuous or attribute.is_discrete:
+            categorical_and_numerical_attributes.append(attribute)
+    return categorical_and_numerical_attributes
+

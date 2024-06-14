@@ -156,7 +156,7 @@ def criticalInstances():
     return critical_instances_list, detail_data
 
 # http://localhost:8000/api/counter-examples/
-def getCriticalExamples(critical_index, user_argument, sign):
+def getCounterExamples(critical_index, user_argument, sign):
     learner, learning_data = learnerAndLearningData()
     if user_argument not in learning_data.domain:
         return {"error": "Not correct argument"}
@@ -175,26 +175,27 @@ def getCriticalExamples(critical_index, user_argument, sign):
         return {"error": "Failed to add argument to column"}
     
     learner, learning_data = learnerAndLearningData()
-    counters, counters_vals, rule, prune = argumentation.analyze_argument(learner, learning_data, critical_index)
+    counters, counters_vals, rule, prune, best_rule = argumentation.analyze_argument(learner, learning_data, critical_index)
     
-    critical_examples = []
+    counter_examples = []
     if len(counters) > 0:
-        counter_examples = learning_data[list(counters)]
-        for counterEx in counter_examples:
-            critical_examples.append({
-                "activity_ime": str(counterEx["activity.ime"]),
-                "net_sales": str(counterEx["net.sales"])
+        counterEx = learning_data[list(counters)]
+        for counter in counterEx:
+            counter_examples.append({
+                "activity_ime": str(counter["activity.ime"]),
+                "net_sales": str(counter["net.sales"])
             })
     else:
         return {"message": "No counter examples found for the analyzed example."}
 
-    return critical_examples
+    return counter_examples
 
 def main():
     """
     Main function, which contains the ABML interactive loop.
     """
 
+    """
     path = os.getcwd() + "/backend/orange3_abml_master/orangecontrib/abml/data/"
     file_path = path + "bonitete_tutor.tab"
 
@@ -202,11 +203,10 @@ def main():
 
     # MAIN LOOP
     while True:
-        # learn
         stars_with_header("Learning rules...")
         learning_data = Table(file_path)
         learner = abrules.ABRuleLearner()
-        learner.calculate_evds(learner)
+        learner.calculate_evds(learning_data)
         classifier = learner(learning_data)
 
         for rule in classifier.rule_list:
@@ -216,12 +216,14 @@ def main():
         # critical examples
         stars_with_header("Finding critical examples...")
         crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
+        print("Critical indexes:", crit_ind)
+        print("Problematic:", problematic)
 
         # Extract the critical example from the original dataset
         critical_instances = learning_data[crit_ind]
         print("Critical instances:")
         for index, instance in enumerate(critical_instances[:5]):
-            print(index+1, " -> ", instance["credit.score"], " ", instance["activity.ime"])
+            print(index+1, " -> ", instance["credit.score"], " ", instance["activity.ime"], " ", problematic[:5][index])
             
         # show user 5 critical examples and let him choose
         while True:
@@ -235,7 +237,7 @@ def main():
                 break
         
         # selected index is now critical_index
-        critical_index = int(selectedInstanceIndex) - 1
+        critical_index = crit_ind[:5][int(selectedInstanceIndex) - 1]
 
         while True:
             # input argument
@@ -270,7 +272,8 @@ def main():
             input("Press enter for argument analysis")
 
             stars_with_header("Analysing argument...")
-            counters, counters_vals, rule, prune = argumentation.analyze_argument(learner, learning_data, critical_index)
+            counters, counters_vals, rule, prune, best_rule = argumentation.analyze_argument(learner, learning_data, critical_index)
+            
             if len(counters) > 0:
                 counter_examples = learning_data[list(counters)]
                 print("Counter examples:")
@@ -293,9 +296,9 @@ def main():
 
         # increment iteration
         stars_with_header("Next iteration:")
+    """
 
     return 0
-
 
 if __name__ == '__main__':
     status = main()

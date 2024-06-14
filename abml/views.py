@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
-from .utils.main import learningRules, criticalInstances, getCriticalExamples
+from .utils.main import learningRules, criticalInstances, getCounterExamples
 import json
 
 from rest_framework.decorators import api_view, permission_classes
@@ -28,7 +28,7 @@ def counter_examples(request):
             user_argument = data.get('userArgument')
             high_low = data.get('highLow')
 
-            counterExamples = getCriticalExamples(index, user_argument, high_low)
+            counterExamples = getCounterExamples(index, user_argument, high_low)
             if "error" in counterExamples:
                 return JsonResponse({'error': counterExamples["error"]}, status=400)
             elif "message" in counterExamples:
