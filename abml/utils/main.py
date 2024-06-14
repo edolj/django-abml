@@ -156,26 +156,17 @@ def criticalInstances():
     return critical_instances_list, detail_data
 
 # http://localhost:8000/api/counter-examples/
-def getCounterExamples(critical_index, user_argument, sign):
+def getCounterExamples(critical_index, user_argument):
     learner, learning_data = learnerAndLearningData()
-    if user_argument not in learning_data.domain:
-        return {"error": "Not correct argument"}
-    
-    getIndex = learning_data.domain.index(user_argument)
-    attribute = learning_data.domain[getIndex]
-    if attribute.is_continuous:
-        if sign not in (">=", "<="):
-            return {"error": "Not correct argument.. missing high, low"}
-        user_argument += sign
 
     # change it to format {argument}
     formatedArg = "{{{}}}".format(user_argument)
     # add argument to argument column in row critical_index
-    if not addArgumentToColumn(critical_index + 3, formatedArg):
+    if not addArgumentToColumn(int(critical_index) + 3, formatedArg):
         return {"error": "Failed to add argument to column"}
     
     learner, learning_data = learnerAndLearningData()
-    counters, counters_vals, rule, prune, best_rule = argumentation.analyze_argument(learner, learning_data, critical_index)
+    counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
     
     counter_examples = []
     if len(counters) > 0:
@@ -185,10 +176,8 @@ def getCounterExamples(critical_index, user_argument, sign):
                 "activity_ime": str(counter["activity.ime"]),
                 "net_sales": str(counter["net.sales"])
             })
-    else:
-        return {"message": "No counter examples found for the analyzed example."}
 
-    return counter_examples
+    return counter_examples, str(best_rule)
 
 def main():
     """

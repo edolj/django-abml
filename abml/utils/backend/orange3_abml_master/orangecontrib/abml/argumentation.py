@@ -191,7 +191,7 @@ def analyze_argument(learner, data, index):
     else:
         best_rule = best_pruned_rule
 
-    return counters, counters_vals, rule, prune, best_rule
+    return counters, best_rule
 
 def get_unused_attributes(rule, data):
     attUsed = []

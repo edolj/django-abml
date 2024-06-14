@@ -20,21 +20,19 @@ def critical_instances(request):
 @permission_classes([AllowAny])
 def counter_examples(request):
     if request.method == 'POST':
-        # Extract JSON data from the request body
         try:
+            # Extract JSON data from the request body
             data = json.loads(request.body)
+            
             # Access the data fields
             index = data.get('index')
             user_argument = data.get('userArgument')
-            high_low = data.get('highLow')
 
-            counterExamples = getCounterExamples(index, user_argument, high_low)
+            counterExamples, bestRule = getCounterExamples(index, user_argument)
             if "error" in counterExamples:
                 return JsonResponse({'error': counterExamples["error"]}, status=400)
-            elif "message" in counterExamples:
-                return JsonResponse({'message': counterExamples["message"]})
             else:
-                return JsonResponse({'counterExamples': counterExamples})
+                return JsonResponse({'counterExamples': counterExamples, 'bestRule': bestRule})
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON format'}, status=400)
     else:
