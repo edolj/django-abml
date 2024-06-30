@@ -53,7 +53,7 @@ def addArgumentToColumn(row_index, argument_to_add):
     else:
         return False
 
-def removeArgumentFromColumn(row_index, argument_to_remove):
+def removeArgumentFromColumn(row_index):
     path = os.getcwd() + "/abml/utils/"
     file_path = path + "bonitete_tutor.tab"
 
@@ -75,12 +75,15 @@ def removeArgumentFromColumn(row_index, argument_to_remove):
         columns = rows[row_index].rstrip().split('\t')
 
         # Remove the argument_to_remove value from the "Arguments" column
-        arguments = columns[arguments_column_index].split(', ')
-        if argument_to_remove in arguments:
-            arguments.remove(argument_to_remove)
-            columns[arguments_column_index] = ', '.join(arguments)
-        else:
-            print(f"Argument '{argument_to_remove}' not found in the 'Arguments' column.")
+        # arguments = columns[arguments_column_index].split(', ')
+        # if argument_to_remove in arguments:
+        #    arguments.remove(argument_to_remove)
+        #    columns[arguments_column_index] = ', '.join(arguments)
+        # else:
+        #    print(f"Argument '{argument_to_remove}' not found in the 'Arguments' column.")
+
+        # Clear the "Arguments" column
+        columns[arguments_column_index] = ''
 
         # Join the columns back into a row with tabs as delimiter
         updated_row = '\t'.join(columns) + '\n'
@@ -91,8 +94,10 @@ def removeArgumentFromColumn(row_index, argument_to_remove):
         # Write the updated contents back to the .tab file
         with open(file_path, "w") as file:
             file.writelines(rows)
+        return True
     else:
         print("Row index out of range.")
+        return False
         
 def learnerAndLearningData():
     path = os.getcwd() + "/abml/utils/"
@@ -159,6 +164,10 @@ def criticalInstances():
 def getCounterExamples(critical_index, user_argument):
     learner, learning_data = learnerAndLearningData()
 
+    # if changing argument
+    if not removeArgumentFromColumn(int(critical_index) + 3):
+        return {"error": "Failed to remove argument from column"}
+
     # change it to format {argument}
     formatedArg = "{{{}}}".format(user_argument)
     # add argument to argument column in row critical_index
@@ -166,7 +175,10 @@ def getCounterExamples(critical_index, user_argument):
         return {"error": "Failed to add argument to column"}
     
     learner, learning_data = learnerAndLearningData()
-    counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
+    try:
+        counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
+    except ValueError as e:
+        return {"error": str(e)}
     
     counter_examples = []
     if len(counters) > 0:

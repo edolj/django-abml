@@ -146,7 +146,10 @@ def analyze_argument(learner, data, index):
     learner.target_instances = [index]
     rules = learner(data).rule_list
     learner.target_instances = None
-    assert len(rules) == 1
+    
+    if not rules:
+        raise ValueError("No rules generated for the given example.")
+    
     rule = rules[0]
     print(rule, rule.curr_class_dist, rule.quality)
     counters = rule.covered_examples & (Y != rule.target_class)
