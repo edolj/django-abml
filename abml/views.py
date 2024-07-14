@@ -28,11 +28,11 @@ def counter_examples(request):
             index = data.get('index')
             user_argument = data.get('userArgument')
 
-            counterExamples, bestRule = getCounterExamples(index, user_argument)
+            counterExamples, bestRule, m_score = getCounterExamples(index, user_argument)
             if "error" in counterExamples:
                 return JsonResponse({'error': counterExamples["error"]}, status=400)
             else:
-                return JsonResponse({'counterExamples': counterExamples, 'bestRule': bestRule})
+                return JsonResponse({'counterExamples': counterExamples, 'bestRule': bestRule, 'm_score': m_score})
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON format'}, status=400)
     else:

@@ -6,6 +6,7 @@ import os
 from Orange.data import Table
 from Orange.classification.rules import Rule, Selector
 from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentation
+from .backend.orange3_evcrules_master.orangecontrib.evcrules.rules import MEstimateEvaluator
 
 def stars_with_header(msg):
     """
@@ -136,6 +137,8 @@ def get_categorical_and_numerical_attributes(domain):
 # http://localhost:8000/api/critical-instances/
 def criticalInstances():
     learner, learning_data = learnerAndLearningData()
+    target_class = learning_data.domain.class_var.name if learning_data.domain.class_var else None
+
     crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
 
     # Extract the critical example from the original dataset
@@ -155,7 +158,7 @@ def criticalInstances():
         critical_instances_list.append({
             "critical_index": str(crit_ind[-5:][index]),
             "problematic": str(round(problematic[-5:][index], 3)),
-            "credit_score": str(instance["credit.score"]),
+            "target_class": str(instance[target_class]),
             "id": str(instance["id"])
         })
     return critical_instances_list, detail_data
@@ -176,20 +179,22 @@ def getCounterExamples(critical_index, user_argument):
     
     learner, learning_data = learnerAndLearningData()
     try:
-        counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
+        full_rule, counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
+        m_score = learner.evaluator_norm.evaluate_rule(full_rule)
     except ValueError as e:
         return {"error": str(e)}
     
     counter_examples = []
     if len(counters) > 0:
         counterEx = learning_data[list(counters)]
+        domains = get_categorical_and_numerical_attributes(counterEx.domain)
         for counter in counterEx:
-            counter_examples.append({
-                "activity_ime": str(counter["activity.ime"]),
-                "net_sales": str(counter["net.sales"])
-            })
+            values = []
+            for d in domains:
+                values.append(str(counter[d]))
+            counter_examples.append(values)
 
-    return counter_examples, str(best_rule)
+    return counter_examples, str(best_rule), m_score
 
 def main():
     """

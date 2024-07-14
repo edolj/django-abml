@@ -151,7 +151,7 @@ def analyze_argument(learner, data, index):
         raise ValueError("No rules generated for the given example.")
     
     rule = rules[0]
-    print(rule, rule.curr_class_dist, rule.quality)
+    # print(rule, rule.curr_class_dist, rule.quality)
     counters = rule.covered_examples & (Y != rule.target_class)
     counters = np.where(counters)[0]
     counter_errs = prob_errors[counters]
@@ -194,7 +194,7 @@ def analyze_argument(learner, data, index):
     else:
         best_rule = best_pruned_rule
 
-    return counters, best_rule
+    return full_rule, counters, best_rule
 
 def get_unused_attributes(rule, data):
     attUsed = []
