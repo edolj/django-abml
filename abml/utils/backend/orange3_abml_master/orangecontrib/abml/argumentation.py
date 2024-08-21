@@ -27,6 +27,9 @@ def kmeans(dist, weights, initial):
         new_centers = []
         for i in range(len(centers)):
             ind = mins == i
+            if not np.any(ind):
+                # Skip empty cluster or handle it in some way
+                continue
             # select only instances belonging to this cluster
             seldist = dist[np.ix_(ind, ind)]*weights[ind]
             # central cluster is the one having the smallest distance sum to others

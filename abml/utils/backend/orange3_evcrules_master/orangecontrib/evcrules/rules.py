@@ -560,7 +560,7 @@ class EVDFitter(RulesStar):
     def __init__(self, preprocessors=None, base_rules=None, n=30, seed=1,
                  max_rule_length=5):
         super().__init__(preprocessors, base_rules)
-        self.evaluator_norm = LRSEvaluator()
+        self.evaluator_norm = MEstimateEvaluator()
         self.evc = False
         self.n = n
         self.seed = seed
