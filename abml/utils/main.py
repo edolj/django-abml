@@ -2,117 +2,81 @@
 # -*- coding: utf-8 -*- 
 __author__ = 'edo'
 
-import os
+import os, pickle
 from Orange.data import Table
 from Orange.classification.rules import Rule, Selector
 from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentation
 from .backend.orange3_evcrules_master.orangecontrib.evcrules.rules import MEstimateEvaluator
+from ..models import LearningData
 
-def stars_with_header(msg):
-    """
-    Util function for prettier output.
-    """
-    stars = 70
-    txt = "*" * stars + "\n"
-    txt += msg
-    print(txt)
-    return
+learner = abrules.ABRuleLearner()
 
-def addArgumentToColumn(row_index, argument_to_add):
-    path = os.getcwd() + "/abml/utils/"
-    file_path = path + "bonitete_tutor.tab"
-
-    # Read the contents of the .tab file
-    with open(file_path, "r") as file:
-        rows = file.readlines()
-
-    # Get the header row and find the index of the 'Arguments' column
-    header = rows[0].rstrip().split('\t')
-    try:
-        arguments_index = header.index("Arguments")
-    except ValueError:
-        return False  # If 'Arguments' column is not found
-
-    # Check if the row index is within the range of rows
-    if 0 <= row_index < len(rows):
-        # Split the row into columns using tab as delimiter
-        columns = rows[row_index].rstrip().split('\t')
-
-        # Append the argument_to_add value to the "Arguments" column
-        columns[arguments_index] += argument_to_add
-
-        # Join the columns back into a row with tabs as delimiter
-        updated_row = '\t'.join(columns) + '\n'
-
-        # Update the specific row in the rows list
-        rows[row_index] = updated_row
-
-        # Write the updated contents back to the .tab file
-        with open(file_path, "w") as file:
-            file.writelines(rows)
-        return True
-    else:
+def addArgument(learning_data, row_index, user_argument):
+    # Find the index of the "Arguments" column in the metas
+    arguments_index = next((i for i, meta in enumerate(learning_data.domain.metas) if meta.name == "Arguments"), None)
+    
+    if arguments_index is None:
+        print("Error: 'Arguments' meta attribute not found.")
         return False
 
-def removeArgumentFromColumn(row_index):
-    path = os.getcwd() + "/abml/utils/"
-    file_path = path + "bonitete_tutor.tab"
+    # Update the value in the "Arguments" column for the specified row
+    learning_data[row_index].metas[arguments_index] = user_argument
+    return True
 
-    # Read the contents of the .tab file
-    with open(file_path, "r") as file:
-        rows = file.readlines()
-
-    # Check if the row index is within the range of rows (excluding the header row)
-    if 0 < row_index < len(rows):
-        # Split the header row into columns to find the "Arguments" column index
-        header_columns = rows[0].rstrip().split('\t')
-        if "Arguments" not in header_columns:
-            print("Arguments column not found in the header.")
-            return
-
-        arguments_column_index = header_columns.index("Arguments")
-
-        # Split the row into columns using tab as delimiter
-        columns = rows[row_index].rstrip().split('\t')
-
-        # Remove the argument_to_remove value from the "Arguments" column
-        # arguments = columns[arguments_column_index].split(', ')
-        # if argument_to_remove in arguments:
-        #    arguments.remove(argument_to_remove)
-        #    columns[arguments_column_index] = ', '.join(arguments)
-        # else:
-        #    print(f"Argument '{argument_to_remove}' not found in the 'Arguments' column.")
-
-        # Clear the "Arguments" column
-        columns[arguments_column_index] = ''
-
-        # Join the columns back into a row with tabs as delimiter
-        updated_row = '\t'.join(columns) + '\n'
-
-        # Update the specific row in the rows list
-        rows[row_index] = updated_row
-
-        # Write the updated contents back to the .tab file
-        with open(file_path, "w") as file:
-            file.writelines(rows)
-        return True
-    else:
-        print("Row index out of range.")
+def removeArgument(learning_data, row_index):
+    # Find the index of the "Arguments" column in the metas
+    arguments_index = next((i for i, meta in enumerate(learning_data.domain.metas) if meta.name == "Arguments"), None)
+    
+    if arguments_index is None:
+        print("Error: 'Arguments' meta attribute not found.")
         return False
+
+    # Clear the value in the "Arguments" column for the specified row
+    learning_data[row_index].metas[arguments_index] = ''
+    return True
         
-def learnerAndLearningData():
+def setLearningData():
     path = os.getcwd() + "/abml/utils/"
     file_path = path + "bonitete_tutor.tab"
     
     learning_data = Table(file_path)
-    learner = abrules.ABRuleLearner()
     learner.calculate_evds(learning_data)
+    
+    # Serialize the Table object
+    serialized_data = serialize_table(learning_data)
+    
+    # Save to the database
+    learning_data_entry = LearningData(data=serialized_data)
+    learning_data_entry.save()
 
-    return learner, learning_data
+def getLearningData():
+    # Retrieve the latest entry
+    learning_data_entry = LearningData.objects.latest('id')
+    
+    # Deserialize the data
+    learning_data = deserialize_table(learning_data_entry.data)
+    learner.calculate_evds(learning_data)
+    
+    return learning_data
 
-# http://localhost:8000/api/learning-rules/    
+def serialize_table(table):
+    return pickle.dumps(table)
+
+def deserialize_table(data):
+    return pickle.loads(data)
+
+def update_table_database(data):
+    # Serialize the updated Table object
+    serialized_data = serialize_table(data)
+    
+    # Update the database entry
+    learning_data_entry = LearningData.objects.latest('id')
+    learning_data_entry.data = serialized_data
+    learning_data_entry.save()
+
+# http://localhost:8000/api/learning-rules/
 def learningRules():
-    learner, learning_data = learnerAndLearningData()
+    learning_data = getLearningData()
     classifier = learner(learning_data)
     
     # Collect data into a list of dictionaries
@@ -136,7 +100,7 @@ def get_categorical_and_numerical_attributes(domain):
 
 # http://localhost:8000/api/critical-instances/
 def criticalInstances():
-    learner, learning_data = learnerAndLearningData()
+    learning_data = getLearningData()
     target_class = learning_data.domain.class_var.name if learning_data.domain.class_var else None
 
     crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
@@ -165,24 +129,21 @@ def criticalInstances():
 
 # http://localhost:8000/api/counter-examples/
 def getCounterExamples(critical_index, user_argument):
-    learner, learning_data = learnerAndLearningData()
-
-    # if changing argument
-    if not removeArgumentFromColumn(int(critical_index) + 3):
-        return {"error": "Failed to remove argument from column"}
+    learning_data = getLearningData()
 
     # change it to format {argument}
     formatedArg = "{{{}}}".format(user_argument)
     # add argument to argument column in row critical_index
-    if not addArgumentToColumn(int(critical_index) + 3, formatedArg):
-        return {"error": "Failed to add argument to column"}
+    if addArgument(learning_data, int(critical_index), formatedArg) == False:
+        return {"error": "Failed to add argument to column"}, "", ""
     
-    learner, learning_data = learnerAndLearningData()
+    update_table_database(learning_data)
+
     try:
         full_rule, counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
         m_score = learner.evaluator_norm.evaluate_rule(full_rule)
     except ValueError as e:
-        return {"error": str(e)}
+        return {"error": str(e)}, "", ""
     
     counter_examples = []
     if len(counters) > 0:
@@ -205,25 +166,25 @@ def main():
     path = os.getcwd() + "/backend/orange3_abml_master/orangecontrib/abml/data/"
     file_path = path + "bonitete_tutor.tab"
 
+    learning_data = Table(file_path)
+    learner = abrules.ABRuleLearner()
+
     input("Ready to learn? Press enter")
 
     # MAIN LOOP
     while True:
-        stars_with_header("Learning rules...")
-        learning_data = Table(file_path)
-        learner = abrules.ABRuleLearner()
+        print("Learning rules...")
+
         learner.calculate_evds(learning_data)
         classifier = learner(learning_data)
 
+        # print learned rules
         for rule in classifier.rule_list:
             print(rule.curr_class_dist.tolist(), rule, rule.quality)
         print()
 
-        # critical examples
-        stars_with_header("Finding critical examples...")
+        print("Finding critical examples...")
         crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
-        print("Critical indexes:", crit_ind)
-        print("Problematic:", problematic)
 
         # Extract the critical example from the original dataset
         critical_instances = learning_data[crit_ind]
@@ -247,7 +208,7 @@ def main():
 
         while True:
             # input argument
-            stars_with_header("Argument input...")
+            print("Argument input...")
 
             while True:
                 # take input as argument
@@ -269,15 +230,13 @@ def main():
 
             # change it to format {argument}
             formatedArg = "{{{}}}".format(user_argument)
-            # add argument to argument column in row critical_index
-            addArgumentToColumn(critical_index + 3, formatedArg)
-            learning_data = Table(file_path)
-            learner = abrules.ABRuleLearner()
+            # add argument to "Arguments" column in row critical_index
+            addArgument(learning_data, critical_index, formatedArg)
             learner.calculate_evds(learning_data)
 
             input("Press enter for argument analysis")
 
-            stars_with_header("Analysing argument...")
+            print("Analysing argument...")
             counters, counters_vals, rule, prune, best_rule = argumentation.analyze_argument(learner, learning_data, critical_index)
             
             if len(counters) > 0:
@@ -293,7 +252,7 @@ def main():
                 if inp in ('c', 'd'):
                     break
             if inp == 'c':
-                removeArgumentFromColumn(critical_index + 3, formatedArg)
+                removeArgument(learning_data, critical_index)
             if inp == 'd':
                 # show which critical example was done in this iteration
                 critical_instance = learning_data[critical_index]
@@ -301,8 +260,8 @@ def main():
                 break
 
         # increment iteration
-        stars_with_header("Next iteration:")
-    """
+        print("Next iteration:")
+        """
 
     return 0
 
