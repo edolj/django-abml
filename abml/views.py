@@ -13,15 +13,17 @@ from rest_framework.authtoken.models import Token
 # Create your views here.
 # takes request -> returns response
 def learning_rules_api(request):
-    rules = learningRules()
+    rules = learningRules(request.user)
     return JsonResponse({'rules': rules})
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def critical_instances(request):
-    critical_instances_data = criticalInstances()
+    critical_instances_data = criticalInstances(request.user)
     return JsonResponse({'critical_instances': critical_instances_data})
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def counter_examples(request):
     if request.method == 'POST':
         try:
@@ -32,7 +34,7 @@ def counter_examples(request):
             index = data.get('index')
             user_argument = data.get('userArgument')
 
-            counterExamples, bestRule, m_score = getCounterExamples(index, user_argument)
+            counterExamples, bestRule, m_score = getCounterExamples(index, user_argument, request.user)
             if "error" in counterExamples:
                 return JsonResponse({'error': counterExamples["error"]}, status=400)
             else:
@@ -55,7 +57,7 @@ def register(request):
         if User.objects.filter(username=username).exists():
             return JsonResponse({'error': 'Username already exists.'}, status=400)
 
-        user = User.objects.create_user(username=username, password=password)
+        User.objects.create_user(username=username, password=password)
         return JsonResponse({'message': 'User created successfully.'}, status=201)
 
     return JsonResponse({'error': 'Invalid request method.'}, status=405)

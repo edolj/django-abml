@@ -35,7 +35,7 @@ def removeArgument(learning_data, row_index):
     learning_data[row_index].metas[arguments_index] = ''
     return True
         
-def setLearningData():
+def setLearningData(user):
     path = os.getcwd() + "/abml/utils/"
     file_path = path + "bonitete_tutor.tab"
     
@@ -45,13 +45,18 @@ def setLearningData():
     # Serialize the Table object
     serialized_data = serialize_table(learning_data)
     
-    # Save to the database
-    learning_data_entry = LearningData(data=serialized_data)
-    learning_data_entry.save()
+    # Save or update the user's LearningData entry
+    LearningData.objects.update_or_create(
+        user=user,  # associate with the current user
+        defaults={'data': serialized_data}
+    )
 
-def getLearningData():
-    # Retrieve the latest entry
-    learning_data_entry = LearningData.objects.latest('id')
+def getLearningData(user):
+    # Retrieve the user's LearningData entry
+    try:
+        learning_data_entry = LearningData.objects.get(user=user)
+    except LearningData.DoesNotExist:
+        return None
     
     # Deserialize the data
     learning_data = deserialize_table(learning_data_entry.data)
@@ -65,18 +70,19 @@ def serialize_table(table):
 def deserialize_table(data):
     return pickle.loads(data)
 
-def update_table_database(data):
+def update_table_database(data, user):
     # Serialize the updated Table object
     serialized_data = serialize_table(data)
     
     # Update the database entry
-    learning_data_entry = LearningData.objects.latest('id')
-    learning_data_entry.data = serialized_data
-    learning_data_entry.save()
+    LearningData.objects.update_or_create(
+        user=user,
+        defaults={'data': serialized_data}
+    )
 
 # http://localhost:8000/api/learning-rules/
-def learningRules():
-    learning_data = getLearningData()
+def learningRules(user):
+    learning_data = getLearningData(user)
     classifier = learner(learning_data)
     
     # Collect data into a list of dictionaries
@@ -99,8 +105,8 @@ def get_categorical_and_numerical_attributes(domain):
     return categorical_and_numerical_attributes
 
 # http://localhost:8000/api/critical-instances/
-def criticalInstances():
-    learning_data = getLearningData()
+def criticalInstances(user):
+    learning_data = getLearningData(user)
     target_class = learning_data.domain.class_var.name if learning_data.domain.class_var else None
 
     crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
@@ -128,8 +134,8 @@ def criticalInstances():
     return critical_instances_list, detail_data
 
 # http://localhost:8000/api/counter-examples/
-def getCounterExamples(critical_index, user_argument):
-    learning_data = getLearningData()
+def getCounterExamples(critical_index, user_argument, user):
+    learning_data = getLearningData(user)
 
     # change it to format {argument}
     formatedArg = "{{{}}}".format(user_argument)
@@ -137,7 +143,7 @@ def getCounterExamples(critical_index, user_argument):
     if addArgument(learning_data, int(critical_index), formatedArg) == False:
         return {"error": "Failed to add argument to column"}, "", ""
     
-    update_table_database(learning_data)
+    update_table_database(learning_data, user)
 
     try:
         full_rule, counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
