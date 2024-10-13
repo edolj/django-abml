@@ -141,7 +141,7 @@ def getCounterExamples(critical_index, user_argument, user):
     formatedArg = "{{{}}}".format(user_argument)
     # add argument to argument column in row critical_index
     if addArgument(learning_data, int(critical_index), formatedArg) == False:
-        return {"error": "Failed to add argument to column"}, "", ""
+        return {"error": "Failed to add argument to column. Please try again."}, "", ""
     
     update_table_database(learning_data, user)
 
@@ -149,7 +149,7 @@ def getCounterExamples(critical_index, user_argument, user):
         full_rule, counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
         m_score = learner.evaluator_norm.evaluate_rule(full_rule)
     except ValueError as e:
-        return {"error": str(e)}, "", ""
+        return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", ""
     
     counter_examples = []
     if len(counters) > 0:

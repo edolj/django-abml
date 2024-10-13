@@ -1,9 +1,6 @@
 """ Main ABML module with class ABRuleLearner for learning rules from
 argumented examples. """
 
-#https://orange3.readthedocs.io/projects/orange-visual-programming/en/latest/widgets/data/createclass.html
-#https://download.biolab.si/download/files/sources/Orange.egg-info/SOURCES.txt
-
 import pickle, re, os
 from warnings import warn
 from copy import copy
@@ -232,55 +229,3 @@ class ABRuleLearner(RulesStar):
 
 if __name__ == '__main__':
     print()
-    """
-    path = os.getcwd() + "/backend/orange3-abml-master/orangecontrib/abml/data/"
-    learning_data = Table(path+"zoo")
-    #print("domain: ", learning_data.domain)
-    
-    learner = ABRuleLearner()
-    learner.calculate_evds(learning_data)
-    classifier = learner(learning_data)
-    #print("classifier: ", classifier)
-
-    #print("learner.evds: ", learner.evds)
-    #to make pickle object
-    #pickle.dump(learner.evds, open(path+"zoo_evds.pickle", "wb"))
-
-    for rule in classifier.rule_list:
-        print(rule.curr_class_dist.tolist(), rule, rule.quality)
-    print()
-    
-    crit_ind, problematic, problematic_rules = find_critical(learner, learning_data)
-    
-    # Extract the critical instances from the original dataset
-    critical_instances = learning_data[crit_ind]
-    
-    # Print or process the critical instances as needed
-    #for instance in critical_instances:
-    #    print(instance)
-
-    most_critical_index = crit_ind[0]
-    print("Most critical index: ", most_critical_index)
-    #most_critical_instance = learning_data[most_critical_index]
-    #print("Most critical instance:", most_critical_instance)
-
-    # take input as argument
-    user_argument = input("Enter argument: ")
-    # change it to format {}
-    formatedArg = "{{{}}}".format(user_argument)
-    #print(formatedArg)
-    # add argument to argument column in line most_critical_index
-    file_path = path + "zoo.tab"
-    addArgumentToColumn(file_path, most_critical_index + 3, formatedArg)
-
-    # analyze argument
-    learning_data = Table(path+"zoo")
-    learner = ABRuleLearner()
-    learner.calculate_evds(learning_data)
-    counters, counters_vals, rule, prune = analyze_argument(learner, learning_data, most_critical_index)
-    print("counters: ", counters)
-    print("counters_vals: ", counters_vals)
-    for rule, freq in prune:
-        print("Rule:", rule)
-        print("Relative Frequency:", freq)
-    """
