@@ -3,7 +3,9 @@ To run this project:
 - python manage.py runserver
 
 First time install:
-- pip install django
+- pip3 install django
+- pip3 install djangorestframework
+- pip3 install django-cors-headers
 - git clone
 - move to cloned project
 - python3 -m venv django-env

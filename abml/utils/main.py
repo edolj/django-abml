@@ -40,7 +40,7 @@ def setLearningData(user):
     file_path = path + "bonitete_tutor.tab"
     
     learning_data = Table(file_path)
-    learner.calculate_evds(learning_data)
+    #learner.calculate_evds(learning_data)
     
     # Serialize the Table object
     serialized_data = serialize_table(learning_data)
@@ -60,7 +60,7 @@ def getLearningData(user):
     
     # Deserialize the data
     learning_data = deserialize_table(learning_data_entry.data)
-    learner.calculate_evds(learning_data)
+    #learner.calculate_evds(learning_data)
     
     return learning_data
 
