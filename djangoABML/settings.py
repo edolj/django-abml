@@ -82,11 +82,31 @@ CORS_ALLOW_CREDENTIALS = True
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'abml_db',           # Edit PostgreSQL database name
+        'USER': 'postgres',
+        'PASSWORD': 'postgres',
+        'HOST': '127.0.0.1',         # For local development
+        'PORT': '5432',              # Default PostgreSQL port
     }
 }
 
+# Use database-backed sessions
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_NAME = 'sessionid'
+# Session expires after 7 days
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days in seconds
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Keep session after browser closes
+
+# Ensure session is saved with every request (optional)
+SESSION_SAVE_EVERY_REQUEST = True
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',  # React app URL
+]
+
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_COOKIE_HTTPONLY = False
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -131,6 +151,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
-    ]
+        'rest_framework.authentication.SessionAuthentication',
+    ],
 }

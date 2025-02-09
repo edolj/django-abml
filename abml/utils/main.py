@@ -51,15 +51,20 @@ def setLearningData(user):
         defaults={'data': serialized_data}
     )
 
+    return serialized_data
+
 def getLearningData(user):
     # Retrieve the user's LearningData entry
     try:
         learning_data_entry = LearningData.objects.get(user=user)
     except LearningData.DoesNotExist:
-        return None
+        learning_data_entry = setLearningData(user)
+        if not learning_data_entry:  # Handle possible failure
+            print(f"setLearningData() failed for user {user}")
+            return None
     
     # Deserialize the data
-    learning_data = deserialize_table(learning_data_entry.data)
+    learning_data = deserialize_table(learning_data_entry)
     #learner.calculate_evds(learning_data)
     
     return learning_data

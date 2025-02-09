@@ -6,5 +6,7 @@ urlpatterns = [
     path('api/critical-instances/', views.critical_instances, name='critical_instances'),
     path('api/counter-examples/', views.counter_examples, name='counter_examples'),
     path('api/register/', views.register, name='register'),
-    path('api/logout/', views.logout_view, name='logout'),
+    path("api/login/", views.login_view, name="login"),
+    path("api/logout/", views.logout_view, name="logout"),
+    path("api/check-session/", views.check_session, name="check_session"),
 ]

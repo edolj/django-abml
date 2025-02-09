@@ -1,14 +1,15 @@
 from .utils.main import learningRules, criticalInstances, getCounterExamples
 
 from django.http import JsonResponse
-from django.contrib.auth.models import User
-from django.views.decorators.csrf import csrf_exempt
-import json
+from django.contrib.auth import authenticate, login, logout
 
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework.authtoken.models import Token
+
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .models import RegisterSerializer
 
 # Create your views here.
 # takes request -> returns response
@@ -17,56 +18,52 @@ def learning_rules_api(request):
     return JsonResponse({'rules': rules})
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
 def critical_instances(request):
     critical_instances_data = criticalInstances(request.user)
     return JsonResponse({'critical_instances': critical_instances_data})
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
 def counter_examples(request):
-    if request.method == 'POST':
-        try:
-            # Extract JSON data from the request body
-            data = json.loads(request.body)
-            
-            # Access the data fields
-            index = data.get('index')
-            user_argument = data.get('userArgument')
+    try:
+        data = request.data
+        index = data.get('index')
+        user_argument = data.get('userArgument')
 
-            counterExamples, bestRule, m_score = getCounterExamples(index, user_argument, request.user)
-            if "error" in counterExamples:
-                return JsonResponse({'error': counterExamples["error"]}, status=400)
-            else:
-                return JsonResponse({'counterExamples': counterExamples, 'bestRule': bestRule, 'm_score': m_score})
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON format'}, status=400)
-    else:
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
+        counterExamples, bestRule, m_score = getCounterExamples(index, user_argument, request.user)
+        if "error" in counterExamples:
+            return Response({'error': counterExamples["error"]}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({'counterExamples': counterExamples, 'bestRule': bestRule, 'm_score': m_score})
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
-@csrf_exempt
+@api_view(['POST'])
 def register(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        username = data.get('username')
-        password = data.get('password')
-
-        if not username or not password:
-            return JsonResponse({'error': 'Please provide all required fields.'}, status=400)
-
-        if User.objects.filter(username=username).exists():
-            return JsonResponse({'error': 'Username already exists.'}, status=400)
-
-        User.objects.create_user(username=username, password=password)
-        return JsonResponse({'message': 'User created successfully.'}, status=201)
-
-    return JsonResponse({'error': 'Invalid request method.'}, status=405)
+    serializer = RegisterSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response({'message': 'Registration successful!'}, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+def login_view(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+
+    user = authenticate(request, username=username, password=password)
+    if user is not None:
+        login(request, user)  # Start session
+        return JsonResponse({"message": "Login successful", "user": {"id": user.id, "username": user.username}}, status=200)
+    else:
+        return JsonResponse({"error": "Invalid credentials"}, status=400)
+
+@api_view(['POST'])
 def logout_view(request):
-    try:
-        request.user.auth_token.delete()
-    except (AttributeError, Token.DoesNotExist):
-        pass
-    return Response(status=204)
+    logout(request)  # Clear session
+    return JsonResponse({"message": "Logged out successfully"}, status=200)
+
+@api_view(['GET'])
+def check_session(request):
+    if request.user.is_authenticated:
+        return JsonResponse({"authenticated": True, "username": request.user.username})
+    return JsonResponse({"authenticated": False}, status=401)
