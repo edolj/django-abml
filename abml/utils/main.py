@@ -46,12 +46,12 @@ def setLearningData(user):
     serialized_data = serialize_table(learning_data)
     
     # Save or update the user's LearningData entry
-    LearningData.objects.update_or_create(
+    learning_data_instance, created = LearningData.objects.update_or_create(
         user=user,  # associate with the current user
         defaults={'data': serialized_data}
     )
 
-    return serialized_data
+    return learning_data_instance
 
 def getLearningData(user):
     # Retrieve the user's LearningData entry
@@ -64,7 +64,7 @@ def getLearningData(user):
             return None
     
     # Deserialize the data
-    learning_data = deserialize_table(learning_data_entry)
+    learning_data = deserialize_table(learning_data_entry.data)
     #learner.calculate_evds(learning_data)
     
     return learning_data
