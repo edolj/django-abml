@@ -1,6 +1,7 @@
 from .utils.main import learningRules, criticalInstances, getCounterExamples
 
 from django.http import JsonResponse
+from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 
 from rest_framework.decorators import api_view
@@ -67,3 +68,8 @@ def check_session(request):
     if request.user.is_authenticated:
         return JsonResponse({"authenticated": True, "username": request.user.username})
     return JsonResponse({"authenticated": False}, status=401)
+
+@api_view(['GET'])
+def get_users(request):
+    users = User.objects.filter(is_superuser=False).values('id', 'username', 'first_name', 'last_name', 'email')
+    return JsonResponse(list(users), safe=False)
