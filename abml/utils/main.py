@@ -69,6 +69,23 @@ def getLearningData(user):
     
     return learning_data
 
+def setIteration(user):
+    try:
+        learning_data_entry = LearningData.objects.get(user=user)
+        current_iteration = learning_data_entry.iteration
+        learning_data_entry.iteration = current_iteration + 1
+        learning_data_entry.save()
+    except LearningData.DoesNotExist:
+        print("No data found")
+
+def getIteration(user):
+    try:
+        learning_data_entry = LearningData.objects.get(user=user)
+    except LearningData.DoesNotExist:
+        return 0
+    
+    return learning_data_entry.iteration
+
 def serialize_table(table):
     return pickle.dumps(table)
 

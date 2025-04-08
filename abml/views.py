@@ -1,4 +1,5 @@
 from .utils.main import learningRules, criticalInstances, getCounterExamples
+from .utils.main import setIteration, getIteration
 
 from django.http import JsonResponse
 from django.contrib.auth.models import User
@@ -38,6 +39,16 @@ def counter_examples(request):
                              'arg_m_score': arg_m_score, 'best_m_score': best_m_score})
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(['GET'])
+def get_iteration_number(request):
+    iterationNumber = getIteration(request.user)
+    return JsonResponse({'iterationNumber': iterationNumber})
+
+@api_view(['PUT'])
+def set_iteration_number(request):
+    setIteration(request.user)
+    return JsonResponse({'message': 'Iteration updated successfully'}, status=200)
     
 @api_view(['POST'])
 def register(request):

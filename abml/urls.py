@@ -10,4 +10,6 @@ urlpatterns = [
     path("api/logout/", views.logout_view, name="logout"),
     path("api/check-session/", views.check_session, name="check_session"),
     path('api/users/', views.get_users, name='get_users'),
+    path('api/get-iteration/', views.get_iteration_number, name='get_iteration_number'),
+    path('api/update-iteration/', views.set_iteration_number, name='set_iteration_number'),
 ]
