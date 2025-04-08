@@ -151,8 +151,13 @@ def getCounterExamples(critical_index, user_argument, user):
     update_table_database(learning_data, user)
 
     try:
-        full_rule, counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
-        m_score = learner.evaluator_norm.evaluate_rule(full_rule)
+        arg_rule, counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
+        arg_m_score = learner.evaluator_norm.evaluate_rule(arg_rule)
+        best_m_score = learner.evaluator_norm.evaluate_rule(best_rule)
+
+        if arg_m_score > best_m_score:
+            best_rule = arg_rule
+            
     except ValueError as e:
         return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", ""
     
@@ -166,7 +171,7 @@ def getCounterExamples(critical_index, user_argument, user):
                 values.append(str(counter[d]))
             counter_examples.append(values)
 
-    return counter_examples, str(best_rule), m_score
+    return counter_examples, str(best_rule), arg_m_score, best_m_score
 
 def main():
     """

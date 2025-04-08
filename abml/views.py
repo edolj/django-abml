@@ -30,11 +30,12 @@ def counter_examples(request):
         index = data.get('index')
         user_argument = data.get('userArgument')
 
-        counterExamples, bestRule, m_score = getCounterExamples(index, user_argument, request.user)
+        counterExamples, bestRule, arg_m_score, best_m_score = getCounterExamples(index, user_argument, request.user)
         if "error" in counterExamples:
             return Response({'error': counterExamples["error"]}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            return Response({'counterExamples': counterExamples, 'bestRule': bestRule, 'm_score': m_score})
+            return Response({'counterExamples': counterExamples, 'bestRule': bestRule,
+                             'arg_m_score': arg_m_score, 'best_m_score': best_m_score})
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
