@@ -154,3 +154,16 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
     ],
 }
+
+# Files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# For raw plain text files
+# Small datasets (e.g., 100–1,000 rows) → usually < 1MB
+# Medium datasets (e.g., 10,000 rows) → around 1–5MB
+# Large datasets (100,000+ rows) → can go 10MB+, depending on how many attributes/metas/classes you have.
+
+# Set limit 20MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024

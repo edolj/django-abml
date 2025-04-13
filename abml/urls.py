@@ -12,4 +12,7 @@ urlpatterns = [
     path('api/users/', views.get_users, name='get_users'),
     path('api/get-iteration/', views.get_iteration_number, name='get_iteration_number'),
     path('api/update-iteration/', views.set_iteration_number, name='set_iteration_number'),
+    path('api/upload-domain/', views.upload_domain, name='upload-domain'),
+    path('api/domains/', views.get_domains, name='get_domains'),
+    path('api/domains/<int:domain_id>/', views.delete_domain, name='delete-domain'),
 ]

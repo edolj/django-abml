@@ -10,6 +10,18 @@ class LearningData(models.Model):
     def __str__(self):
         return f"Learning Data for {self.user.username}"
     
+class Domain(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    data = models.BinaryField()
+
+    def __str__(self):
+        return self.name
+    
+class DomainSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Domain
+        fields = ['id', 'name']
+    
 class RegisterSerializer(serializers.ModelSerializer):
     password_confirm = serializers.CharField(write_only=True)
 

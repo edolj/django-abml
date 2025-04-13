@@ -5,13 +5,14 @@ from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
-
 from rest_framework import status
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from .models import RegisterSerializer
+from .models import RegisterSerializer, Domain, DomainSerializer
+
+from Orange.data import Table
+import pickle, tempfile, os
 
 # Create your views here.
 # takes request -> returns response
@@ -85,3 +86,54 @@ def check_session(request):
 def get_users(request):
     users = User.objects.filter(is_superuser=False).values('id', 'username', 'first_name', 'last_name', 'email')
     return JsonResponse(list(users), safe=False)
+
+@api_view(['GET'])
+def get_domains(request):
+    domains = Domain.objects.all()
+    serializer = DomainSerializer(domains, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser])
+def upload_domain(request):
+    file = request.FILES.get('file')
+    name = request.POST.get('name')
+
+    if not file or not name:
+        return Response({'error': 'Missing file or name'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if Domain.objects.filter(name=name).exists():
+        return Response({'error': 'Domain with this name already exists.'}, status=400)
+
+    try:
+        # Create a temporary file to store the in-memory file
+       with tempfile.NamedTemporaryFile(delete=False, suffix=".tab") as temp_file:
+        temp_file.write(file.read())
+        temp_file_path = temp_file.name
+
+        table = Table(temp_file_path)
+        binary_data = pickle.dumps(table)
+
+        # Save to DB
+        Domain.objects.create(name=name, data=binary_data)
+
+        # Return the response with the serialized domain
+        serializer = DomainSerializer(Domain.objects.get(name=name))
+        return Response(serializer.data, status=201)
+    
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    finally:
+        # Ensure cleanup of the temporary file after processing
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
+@api_view(['DELETE'])
+def delete_domain(request, domain_id):
+    try:
+        domain = Domain.objects.get(id=domain_id)
+        domain.delete()
+        return Response({'message': 'Domain deleted successfully.'}, status=204)
+    except Domain.DoesNotExist:
+        return Response({'error': 'Domain not found.'}, status=404)
