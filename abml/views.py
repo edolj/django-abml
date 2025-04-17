@@ -20,9 +20,12 @@ def learning_rules_api(request):
     rules = learningRules(request.user)
     return JsonResponse({'rules': rules})
 
-@api_view(['GET'])
+@api_view(['POST'])
 def critical_instances(request):
-    critical_instances_data = criticalInstances(request.user)
+    domain_name = request.data.get("domain")
+    critical_instances_data = criticalInstances(request.user, domain_name)
+    if critical_instances_data is None:
+        return JsonResponse({'error': 'Failed to initialize learning data.'}, status=status.HTTP_400_BAD_REQUEST)
     return JsonResponse({'critical_instances': critical_instances_data})
 
 @api_view(['POST'])
@@ -106,10 +109,10 @@ def upload_domain(request):
         return Response({'error': 'Domain with this name already exists.'}, status=400)
 
     try:
-        # Create a temporary file to store the in-memory file
-       with tempfile.NamedTemporaryFile(delete=False, suffix=".tab") as temp_file:
-        temp_file.write(file.read())
-        temp_file_path = temp_file.name
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".tab") as temp_file:
+            temp_file.write(file.read())
+            temp_file_path = temp_file.name
 
         table = Table(temp_file_path)
         binary_data = pickle.dumps(table)

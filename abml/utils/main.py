@@ -7,7 +7,7 @@ from Orange.data import Table
 from Orange.classification.rules import Rule, Selector
 from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentation
 from .backend.orange3_evcrules_master.orangecontrib.evcrules.rules import MEstimateEvaluator
-from ..models import LearningData
+from ..models import LearningData, Domain
 
 learner = abrules.ABRuleLearner()
 
@@ -34,21 +34,29 @@ def removeArgument(learning_data, row_index):
     # Clear the value in the "Arguments" column for the specified row
     learning_data[row_index].metas[arguments_index] = ''
     return True
-        
-def setLearningData(user):
-    path = os.getcwd() + "/abml/utils/"
-    file_path = path + "bonitete_tutor.tab"
-    
-    learning_data = Table(file_path)
+
+def setLearningData(user, domain_name):
+    #path = os.getcwd() + "/abml/utils/"
+    #file_path = path + "bonitete_tutor.tab"
+    #learning_data = Table(file_path)
     #learner.calculate_evds(learning_data)
+
+    try:
+        domain = Domain.objects.get(name=domain_name)
+    except Domain.DoesNotExist:
+        print(f"Domain '{domain_name}' not found.")
+        return None
+
+    if not domain.data:
+        print(f"No data found for domain '{domain_name}'")
+        return None
     
-    # Serialize the Table object
-    serialized_data = serialize_table(learning_data)
-    
-    # Save or update the user's LearningData entry
-    learning_data_instance, created = LearningData.objects.update_or_create(
-        user=user,  # associate with the current user
-        defaults={'data': serialized_data}
+    table = pickle.loads(domain.data)
+    serialized_data = serialize_table(table)
+
+    learning_data_instance, _ = LearningData.objects.update_or_create(
+        user=user,
+        defaults={'data': serialized_data, 'iteration': 0}
     )
 
     return learning_data_instance
@@ -58,10 +66,7 @@ def getLearningData(user):
     try:
         learning_data_entry = LearningData.objects.get(user=user)
     except LearningData.DoesNotExist:
-        learning_data_entry = setLearningData(user)
-        if not learning_data_entry:  # Handle possible failure
-            print(f"setLearningData() failed for user {user}")
-            return None
+        return None
     
     # Deserialize the data
     learning_data = deserialize_table(learning_data_entry.data)
@@ -127,8 +132,15 @@ def get_categorical_and_numerical_attributes(domain):
     return categorical_and_numerical_attributes
 
 # http://localhost:8000/api/critical-instances/
-def criticalInstances(user):
+def criticalInstances(user, domain_name):
     learning_data = getLearningData(user)
+    if learning_data == None:
+        learning_data = setLearningData(user, domain_name)
+        if learning_data == None:
+            return None
+        else:
+            learning_data = getLearningData(user)
+
     target_class = learning_data.domain.class_var.name if learning_data.domain.class_var else None
 
     crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
