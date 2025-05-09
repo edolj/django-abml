@@ -132,14 +132,19 @@ def get_categorical_and_numerical_attributes(domain):
     return categorical_and_numerical_attributes
 
 # http://localhost:8000/api/critical-instances/
-def criticalInstances(user, domain_name):
-    learning_data = getLearningData(user)
-    if learning_data == None:
-        learning_data = setLearningData(user, domain_name)
-        if learning_data == None:
+def criticalInstances(user, domain_name, startNewSession=False):
+    if startNewSession:
+        learning_data_entry = setLearningData(user, domain_name)
+        if learning_data_entry is None: 
             return None
-        else:
-            learning_data = getLearningData(user)
+        learning_data = deserialize_table(learning_data_entry.data)
+    else:
+        learning_data = getLearningData(user)
+        if learning_data == None:
+            learning_data_entry = setLearningData(user, domain_name)
+            if learning_data_entry is None:
+                return None
+            learning_data = deserialize_table(learning_data_entry.data)
 
     target_class = learning_data.domain.class_var.name if learning_data.domain.class_var else None
 

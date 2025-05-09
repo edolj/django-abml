@@ -23,7 +23,8 @@ def learning_rules_api(request):
 @api_view(['POST'])
 def critical_instances(request):
     domain_name = request.data.get("domain")
-    critical_instances_data = criticalInstances(request.user, domain_name)
+    start_new = request.data.get("startNew")
+    critical_instances_data = criticalInstances(request.user, domain_name, startNewSession=start_new)
     if critical_instances_data is None:
         return JsonResponse({'error': 'Failed to initialize learning data.'}, status=status.HTTP_400_BAD_REQUEST)
     return JsonResponse({'critical_instances': critical_instances_data})
