@@ -124,6 +124,23 @@ def learningRules(user):
     
     return rules_data
 
+# http://localhost:8000/api/attributes/
+def getAttributes(user):
+    learning_data = getLearningData(user)
+    domain = learning_data.domain
+    target_name = domain.class_var.name if domain.class_var else None
+
+    attributes_list = []
+    for attribute in domain:
+        if attribute.name == target_name:
+            continue
+        if attribute.is_continuous:
+            attributes_list.append({"name": str(attribute), "type": "continuous"})
+        elif attribute.is_discrete:
+            attributes_list.append({"name": str(attribute), "type": "discrete"})
+    
+    return attributes_list
+
 def get_categorical_and_numerical_attributes(domain):
     categorical_and_numerical_attributes = []
     for attribute in domain:

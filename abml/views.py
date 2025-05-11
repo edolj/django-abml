@@ -1,5 +1,5 @@
 from .utils.main import learningRules, criticalInstances, getCounterExamples
-from .utils.main import setIteration, getIteration
+from .utils.main import setIteration, getIteration, getAttributes
 
 from django.http import JsonResponse
 from django.contrib.auth.models import User
@@ -96,6 +96,11 @@ def get_domains(request):
     domains = Domain.objects.all()
     serializer = DomainSerializer(domains, many=True)
     return Response(serializer.data)
+
+@api_view(['GET'])
+def get_attributes(request):
+    attributes = getAttributes(request.user)
+    return Response(attributes)
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
