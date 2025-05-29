@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*- 
 __author__ = 'edo'
 
-import os, pickle
-from Orange.data import Table
+import os, re, pickle
+from Orange.data import Table, Domain as OrangeDomain
 from Orange.classification.rules import Rule, Selector
 from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentation
 from .backend.orange3_evcrules_master.orangecontrib.evcrules.rules import MEstimateEvaluator
@@ -11,7 +11,7 @@ from ..models import LearningData, Domain
 
 learner = abrules.ABRuleLearner()
 
-def addArgument(learning_data, row_index, user_argument):
+def addArgument(learning_data, row_index, user_argument, full_data, user):
     # Find the index of the "Arguments" column in the metas
     arguments_index = next((i for i, meta in enumerate(learning_data.domain.metas) if meta.name == "Arguments"), None)
     
@@ -21,7 +21,13 @@ def addArgument(learning_data, row_index, user_argument):
 
     # Update the value in the "Arguments" column for the specified row
     learning_data[row_index].metas[arguments_index] = user_argument
-    return True
+    full_data[row_index].metas[arguments_index] = user_argument
+
+    serialized_data = serialize_table(full_data)
+    LearningData.objects.update_or_create(
+        user=user,
+        defaults={'full_data': serialized_data}
+    )
 
 def removeArgument(learning_data, row_index):
     # Find the index of the "Arguments" column in the metas
@@ -51,12 +57,27 @@ def setLearningData(user, domain_name):
         print(f"No data found for domain '{domain_name}'")
         return None
     
+    inactive_attributes = []
+    if domain_name == "Bonitete":
+        inactive_attributes = [
+            "total.oper.liabilities/assets",
+            "current.ratio",
+            "lt.sales.growth",
+            "st.sales.growth",
+            "lt.ebit.margin.change",
+            "net.debt/EBITDA",
+            "equity.ratio",
+            "TIE",
+            "ROA",
+            "public"
+        ]
+    
     table = pickle.loads(domain.data)
     serialized_data = serialize_table(table)
 
     learning_data_instance, _ = LearningData.objects.update_or_create(
         user=user,
-        defaults={'data': serialized_data, 'iteration': 0}
+        defaults={'data': serialized_data, 'iteration': 0, 'full_data': serialized_data, 'inactive_attributes': inactive_attributes}
     )
 
     return learning_data_instance
@@ -66,13 +87,20 @@ def getLearningData(user):
     try:
         learning_data_entry = LearningData.objects.get(user=user)
     except LearningData.DoesNotExist:
-        return None
+        return None, None
     
     # Deserialize the data
-    learning_data = deserialize_table(learning_data_entry.data)
-    #learner.calculate_evds(learning_data)
-    
-    return learning_data
+    full_data = deserialize_table(learning_data_entry.full_data)
+    inactive_attrs = learning_data_entry.inactive_attributes or []
+    active_data = remove_inactive_attributes(full_data, inactive_attrs)
+    return active_data, full_data
+
+def getInactiveAttr(user):
+    try:
+        learning_data_entry = LearningData.objects.get(user=user)
+        return learning_data_entry.inactive_attributes or []
+    except LearningData.DoesNotExist:
+        return []
 
 def setIteration(user):
     try:
@@ -86,10 +114,9 @@ def setIteration(user):
 def getIteration(user):
     try:
         learning_data_entry = LearningData.objects.get(user=user)
+        return learning_data_entry.iteration
     except LearningData.DoesNotExist:
         return 0
-    
-    return learning_data_entry.iteration
 
 def serialize_table(table):
     return pickle.dumps(table)
@@ -97,19 +124,41 @@ def serialize_table(table):
 def deserialize_table(data):
     return pickle.loads(data)
 
-def update_table_database(data, user):
+def update_table_database(data, user, user_argument, full_data):
+    inactive_attrs = getInactiveAttr(user)
+    extracted_attrs = extract_attributes(user_argument)
+    for attr in extracted_attrs:
+        if attr in inactive_attrs:
+            inactive_attrs.remove(attr)
+            data = add_attribute_back(full_data, data, attr)
+            
     # Serialize the updated Table object
     serialized_data = serialize_table(data)
     
     # Update the database entry
     LearningData.objects.update_or_create(
         user=user,
-        defaults={'data': serialized_data}
+        defaults={'data': serialized_data, 'inactive_attributes': inactive_attrs}
     )
+
+def remove_inactive_attributes(data, inactive_attrs):
+    active_attrs = [a for a in data.domain.attributes if a.name not in inactive_attrs]
+    domain = OrangeDomain(active_attrs, data.domain.class_var, data.domain.metas)
+    return Table.from_table(domain, data)
+
+def add_attribute_back(full_data, current_data, attr_name):
+    current_attr_names = [a.name for a in current_data.domain.attributes]
+    new_attrs = [a for a in full_data.domain.attributes if a.name in current_attr_names or a.name == attr_name]
+    domain = OrangeDomain(new_attrs, full_data.domain.class_var, full_data.domain.metas)
+    return Table.from_table(domain, full_data)
+
+def extract_attributes(input_str):
+    pattern = r'([\w./]+)\s*(?:<=|>=|=|<|>)?'
+    return re.findall(pattern, input_str)
 
 # http://localhost:8000/api/learning-rules/
 def learningRules(user):
-    learning_data = getLearningData(user)
+    learning_data, _ = getLearningData(user)
     classifier = learner(learning_data)
     
     # Collect data into a list of dictionaries
@@ -126,7 +175,7 @@ def learningRules(user):
 
 # http://localhost:8000/api/attributes/
 def getAttributes(user):
-    learning_data = getLearningData(user)
+    _, learning_data = getLearningData(user)
     domain = learning_data.domain
     target_name = domain.class_var.name if domain.class_var else None
 
@@ -154,26 +203,26 @@ def criticalInstances(user, domain_name, startNewSession=False):
         learning_data_entry = setLearningData(user, domain_name)
         if learning_data_entry is None: 
             return None
-        learning_data = deserialize_table(learning_data_entry.data)
+        learning_data, full_data = getLearningData(user)
     else:
-        learning_data = getLearningData(user)
+        learning_data, full_data = getLearningData(user)
         if learning_data == None:
             learning_data_entry = setLearningData(user, domain_name)
             if learning_data_entry is None:
                 return None
-            learning_data = deserialize_table(learning_data_entry.data)
+            learning_data, full_data = getLearningData(user)
 
     target_class = learning_data.domain.class_var.name if learning_data.domain.class_var else None
-
     crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
 
     # Extract the critical example from the original dataset
     critical_instances = learning_data[crit_ind]
-    domains = get_categorical_and_numerical_attributes(critical_instances.domain)
+    domains = get_categorical_and_numerical_attributes(full_data.domain)
 
     pairs = []
     detail_data = []
-    for instance in critical_instances[-5:]:
+    for index in crit_ind[-5:]:
+        instance = full_data[index]
         for d in domains:
             pairs.append((d, str(instance[d])))
         detail_data.append(pairs)
@@ -191,16 +240,17 @@ def criticalInstances(user, domain_name, startNewSession=False):
 
 # http://localhost:8000/api/counter-examples/
 def getCounterExamples(critical_index, user_argument, user):
-    learning_data = getLearningData(user)
+    learning_data, full_data = getLearningData(user)
 
     # change it to format {argument}
     formatedArg = "{{{}}}".format(user_argument)
     # add argument to argument column in row critical_index
-    if addArgument(learning_data, int(critical_index), formatedArg) == False:
-        return {"error": "Failed to add argument to column. Please try again."}, "", ""
+    if addArgument(learning_data, int(critical_index), formatedArg, full_data, user) == False:
+        return {"error": "Failed to add argument to column. Please try again."}, "", "", ""
     
-    update_table_database(learning_data, user)
-
+    update_table_database(learning_data, user, user_argument, full_data)
+    learning_data, full_data = getLearningData(user)
+    
     try:
         arg_rule, counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
         arg_m_score = learner.evaluator_norm.evaluate_rule(arg_rule)
@@ -210,12 +260,12 @@ def getCounterExamples(critical_index, user_argument, user):
             best_rule = arg_rule
             
     except ValueError as e:
-        return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", ""
+        return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", "", ""
     
     counter_examples = []
     if len(counters) > 0:
-        counterEx = learning_data[list(counters)]
-        domains = get_categorical_and_numerical_attributes(counterEx.domain)
+        counterEx = full_data[list(counters)]
+        domains = get_categorical_and_numerical_attributes(full_data.domain)
         for counter in counterEx:
             values = []
             for d in domains:

@@ -1,11 +1,14 @@
 from django.db import models
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.contrib.postgres.fields import ArrayField
 
 class LearningData(models.Model):
     data = models.BinaryField()
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     iteration = models.IntegerField(default=0)
+    full_data = models.BinaryField(null=True)
+    inactive_attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
 
     def __str__(self):
         return f"Learning Data for {self.user.username}"
