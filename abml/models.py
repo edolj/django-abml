@@ -7,15 +7,23 @@ class LearningData(models.Model):
     data = models.BinaryField()
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     iteration = models.IntegerField(default=0)
+    name = models.CharField(max_length=255, default="", unique=True)
     full_data = models.BinaryField(null=True)
     inactive_attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
 
     def __str__(self):
         return f"Learning Data for {self.user.username}"
     
+class LearningDataSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LearningData
+        fields = ['name', 'iteration', 'inactive_attributes']
+
 class Domain(models.Model):
     name = models.CharField(max_length=255, unique=True)
     data = models.BinaryField()
+    attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
+    expert_attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
 
     def __str__(self):
         return self.name
@@ -23,7 +31,7 @@ class Domain(models.Model):
 class DomainSerializer(serializers.ModelSerializer):
     class Meta:
         model = Domain
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'attributes', 'expert_attributes']
     
 class RegisterSerializer(serializers.ModelSerializer):
     password_confirm = serializers.CharField(write_only=True)

@@ -9,7 +9,8 @@ from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
-from .models import RegisterSerializer, Domain, DomainSerializer
+from .models import Domain, LearningData
+from .models import RegisterSerializer, DomainSerializer, LearningDataSerializer
 
 from Orange.data import Table
 import pickle, tempfile, os
@@ -102,6 +103,17 @@ def get_attributes(request):
     attributes = getAttributes(request.user)
     return Response(attributes)
 
+@api_view(['GET'])
+def get_learning_object(request):
+    print(request.user)
+    try:
+        learning_data = LearningData.objects.get(user=request.user)
+    except LearningData.DoesNotExist:
+        return Response({})
+
+    serializer = LearningDataSerializer(learning_data)
+    return Response(serializer.data)
+
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
 def upload_domain(request):
@@ -122,9 +134,11 @@ def upload_domain(request):
 
         table = Table(temp_file_path)
         binary_data = pickle.dumps(table)
+        attribute_names = [attr.name for attr in table.domain.attributes]
 
         # Save to DB
-        Domain.objects.create(name=name, data=binary_data)
+        Domain.objects.create(name=name, data=binary_data, 
+                              attributes=attribute_names, expert_attributes=[])
 
         # Return the response with the serialized domain
         serializer = DomainSerializer(Domain.objects.get(name=name))
@@ -146,3 +160,18 @@ def delete_domain(request, domain_id):
         return Response({'message': 'Domain deleted successfully.'}, status=204)
     except Domain.DoesNotExist:
         return Response({'error': 'Domain not found.'}, status=404)
+    
+@api_view(['PUT'])
+def update_domain(request, domain_id):
+    try:
+        domain = Domain.objects.get(id=domain_id)
+    except Domain.DoesNotExist:
+        return Response({'error': 'Domain not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    expert_attributes = request.data.get('expert_attributes')
+    if expert_attributes is not None:
+        domain.expert_attributes = expert_attributes
+        domain.save()
+
+    return Response({'message': 'Domain updated successfully'})
+

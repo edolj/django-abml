@@ -15,5 +15,7 @@ urlpatterns = [
     path('api/upload-domain/', views.upload_domain, name='upload_domain'),
     path('api/domains/', views.get_domains, name='get_domains'),
     path('api/domains/<int:domain_id>/', views.delete_domain, name='delete_domain'),
+    path('api/domains/<int:domain_id>/update/', views.update_domain, name='update_domain'),
     path('api/attributes/', views.get_attributes, name='get_attributes'),
+    path('api/get-learning-object/', views.get_learning_object, name='get_learning_object'),
 ]

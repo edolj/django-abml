@@ -57,27 +57,14 @@ def setLearningData(user, domain_name):
         print(f"No data found for domain '{domain_name}'")
         return None
     
-    inactive_attributes = []
-    if domain_name == "Bonitete":
-        inactive_attributes = [
-            "total.oper.liabilities/assets",
-            "current.ratio",
-            "lt.sales.growth",
-            "st.sales.growth",
-            "lt.ebit.margin.change",
-            "net.debt/EBITDA",
-            "equity.ratio",
-            "TIE",
-            "ROA",
-            "public"
-        ]
-    
     table = pickle.loads(domain.data)
     serialized_data = serialize_table(table)
+    inactive_attributes = domain.expert_attributes
 
     learning_data_instance, _ = LearningData.objects.update_or_create(
         user=user,
-        defaults={'data': serialized_data, 'iteration': 0, 'full_data': serialized_data, 'inactive_attributes': inactive_attributes}
+        defaults={'data': serialized_data, 'iteration': 0, 'name': domain_name,
+                  'full_data': serialized_data, 'inactive_attributes': inactive_attributes}
     )
 
     return learning_data_instance
