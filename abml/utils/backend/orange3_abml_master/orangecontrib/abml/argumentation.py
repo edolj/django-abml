@@ -213,50 +213,42 @@ def get_unused_attributes(rule, data):
     return filtered_attributes
 
 def generateExtendedRules(rule, unused_att, data, index):
-    generate_att = []
-    for att in unused_att:
-        if att.is_continuous:
-            generate_att.append(att.name+"<=")
-            generate_att.append(att.name+">=")
-        elif att.is_discrete:
-            generate_att.append(att.name)
-
     ext_rules = []
-    for att in generate_att:
-        column, op, value = abrules.ABRuleLearner.parse_constraint(att, data, index)
 
-        # Get attribute from data domain
-        attribute = data.domain.attributes[column]
+    for att in unused_att:
+        column = data.domain.attributes.index(att)
 
-        # Check if attribute is discrete (categorical)
-        if attribute.is_discrete:
-            # Get all possible discrete values for this attribute
-            possible_values = attribute.values
+        # Get the value of this attribute in the current example
+        ex_value = data[index][column]
 
-            # Generate rules for each possible value using == and !=
-            for index, discrete_value in enumerate(possible_values):
-                # Create equality rule
-                selector_eq = Selector(column=column, op="==", value=index)
-                new_rule_eq = Rule(selectors=[selector_eq] + rule.selectors, domain=data.domain)
-                new_rule_eq.prior_class_dist = rule.prior_class_dist
-                ext_rules.append(new_rule_eq)
+        if att.is_discrete:
+            # Get index of value in domain
+            value_name = ex_value.value
+            if value_name not in att.values:
+                continue  # skip unknown or missing values
+            value_index = att.values.index(value_name)
 
-                # Create inequality rule
-                selector_neq = Selector(column=column, op="!=", value=index)
-                new_rule_neq = Rule(selectors=[selector_neq] + rule.selectors, domain=data.domain)
-                new_rule_neq.prior_class_dist = rule.prior_class_dist
-                ext_rules.append(new_rule_neq)
+            # Equality selector
+            selector_eq = Selector(column=column, op="==", value=value_index)
+            new_rule_eq = Rule(selectors=[selector_eq] + rule.selectors, domain=data.domain)
+            new_rule_eq.prior_class_dist = rule.prior_class_dist
+            ext_rules.append(new_rule_eq)
 
-        else:
-            if op == ">=":
-                value = np.min(data.X[column])
-            else:
-                value = np.max(data.X[column])
-        selector = Selector(column=column, op=op, value=value)
-        new_rule = Rule(selectors=[selector]+rule.selectors, domain=data.domain)
-        new_rule.prior_class_dist = rule.prior_class_dist
-        ext_rules.append(new_rule)
-    
+        elif att.is_continuous:
+            value = ex_value
+
+            # "<=" selector
+            selector_le = Selector(column=column, op="<=", value=value)
+            new_rule_le = Rule(selectors=[selector_le] + rule.selectors, domain=data.domain)
+            new_rule_le.prior_class_dist = rule.prior_class_dist
+            ext_rules.append(new_rule_le)
+
+            # ">=" selector
+            selector_ge = Selector(column=column, op=">=", value=value)
+            new_rule_ge = Rule(selectors=[selector_ge] + rule.selectors, domain=data.domain)
+            new_rule_ge.prior_class_dist = rule.prior_class_dist
+            ext_rules.append(new_rule_ge)
+
     return ext_rules
 
 def evaluate_rules(learner, rules, X, Y, W, target_class):
