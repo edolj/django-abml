@@ -1,5 +1,5 @@
 from .utils.main import learningRules, criticalInstances, getCounterExamples
-from .utils.main import setIteration, getIteration, getAttributes
+from .utils.main import setIteration, getIteration, getAttributes, gatherDataToVisualize
 
 from django.http import JsonResponse
 from django.contrib.auth.models import User
@@ -105,7 +105,6 @@ def get_attributes(request):
 
 @api_view(['GET'])
 def get_learning_object(request):
-    print(request.user)
     try:
         learning_data = LearningData.objects.get(user=request.user)
     except LearningData.DoesNotExist:
@@ -175,3 +174,7 @@ def update_domain(request, domain_id):
 
     return Response({'message': 'Domain updated successfully'})
 
+@api_view(['GET'])
+def get_all_numeric_attributes(request):
+    result = gatherDataToVisualize(request.user)
+    return JsonResponse(result)

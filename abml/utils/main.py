@@ -3,7 +3,7 @@
 __author__ = 'edo'
 
 import os, re, pickle
-from Orange.data import Table, Domain as OrangeDomain
+from Orange.data import Table, Domain as OrangeDomain, ContinuousVariable
 from Orange.classification.rules import Rule, Selector
 from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentation
 from .backend.orange3_evcrules_master.orangecontrib.evcrules.rules import MEstimateEvaluator
@@ -142,6 +142,18 @@ def add_attribute_back(full_data, current_data, attr_name):
 def extract_attributes(input_str):
     pattern = r'([\w./]+)\s*(?:<=|>=|=|<|>)?'
     return re.findall(pattern, input_str)
+
+# http://localhost:8000/api/get-charts-data/
+def gatherDataToVisualize(user):
+    _, full_data = getLearningData(user)
+
+    result = {}
+    for attr in full_data.domain.attributes:
+        if isinstance(attr, ContinuousVariable):
+            values = [row[attr.name] for row in full_data]
+            result[attr.name] = values
+    
+    return result
 
 # http://localhost:8000/api/learning-rules/
 def learningRules(user):
