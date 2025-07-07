@@ -177,16 +177,26 @@ def getAttributes(user):
     _, learning_data = getLearningData(user)
     domain = learning_data.domain
     target_name = domain.class_var.name if domain.class_var else None
+    meta_names = {var.name for var in domain.metas}
 
     attributes_list = []
     for attribute in domain:
         if attribute.name == target_name:
-            continue
-        if attribute.is_continuous:
-            attributes_list.append({"name": str(attribute), "type": "continuous"})
+            attr_type = "target"
+        elif attribute.name in meta_names:
+            attr_type = "meta"
+        elif attribute.is_continuous:
+            attr_type = "continuous"
         elif attribute.is_discrete:
-            attributes_list.append({"name": str(attribute), "type": "discrete"})
-    
+            attr_type = "discrete"
+        else:
+            attr_type = "unknown"
+
+        attributes_list.append({
+            "name": attribute.name,
+            "type": attr_type
+        })
+
     return attributes_list
 
 def get_categorical_and_numerical_attributes(domain):
