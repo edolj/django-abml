@@ -1,4 +1,4 @@
-from .utils.main import learningRules, criticalInstances, getCounterExamples
+from .utils.main import learningRules, criticalInstances, getCounterExamples, getExpertAttr
 from .utils.main import setIteration, getIteration, getAttributes, gatherDataToVisualize
 
 from django.http import JsonResponse
@@ -101,6 +101,11 @@ def get_domains(request):
 @api_view(['GET'])
 def get_attributes(request):
     attributes = getAttributes(request.user)
+    return Response(attributes)
+
+@api_view(['GET'])
+def get_expert_attributes(request):
+    attributes = getExpertAttr(request.user)
     return Response(attributes)
 
 @api_view(['GET'])

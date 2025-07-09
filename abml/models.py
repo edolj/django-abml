@@ -10,6 +10,7 @@ class LearningData(models.Model):
     name = models.CharField(max_length=255, default="", unique=True)
     full_data = models.BinaryField(null=True)
     inactive_attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
+    expert_attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
 
     def __str__(self):
         return f"Learning Data for {self.user.username}"
@@ -17,7 +18,7 @@ class LearningData(models.Model):
 class LearningDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = LearningData
-        fields = ['name', 'iteration', 'inactive_attributes']
+        fields = ['name', 'iteration', 'inactive_attributes', 'expert_attributes']
 
 class Domain(models.Model):
     name = models.CharField(max_length=255, unique=True)

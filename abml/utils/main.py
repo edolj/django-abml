@@ -59,12 +59,18 @@ def setLearningData(user, domain_name):
     
     table = pickle.loads(domain.data)
     serialized_data = serialize_table(table)
-    inactive_attributes = domain.expert_attributes
+    expert_attributes = domain.expert_attributes or []
+    inactive_attributes = expert_attributes.copy()
 
     learning_data_instance, _ = LearningData.objects.update_or_create(
         user=user,
-        defaults={'data': serialized_data, 'iteration': 0, 'name': domain_name,
-                  'full_data': serialized_data, 'inactive_attributes': inactive_attributes}
+        defaults={'data': serialized_data, 
+                  'iteration': 0, 
+                  'name': domain_name,
+                  'full_data': serialized_data,
+                  'inactive_attributes': inactive_attributes,
+                  'expert_attributes': expert_attributes
+                  }
     )
 
     return learning_data_instance
@@ -86,6 +92,13 @@ def getInactiveAttr(user):
     try:
         learning_data_entry = LearningData.objects.get(user=user)
         return learning_data_entry.inactive_attributes or []
+    except LearningData.DoesNotExist:
+        return []
+    
+def getExpertAttr(user):
+    try:
+        learning_data_entry = LearningData.objects.get(user=user)
+        return learning_data_entry.expert_attributes or []
     except LearningData.DoesNotExist:
         return []
 
