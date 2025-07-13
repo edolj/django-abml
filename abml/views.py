@@ -1,5 +1,6 @@
-from .utils.main import learningRules, criticalInstances, getCounterExamples, getExpertAttr
-from .utils.main import setIteration, getIteration, getAttributes, gatherDataToVisualize
+from .utils.main import learningRules, criticalInstances, getCounterExamples
+from .utils.main import setIteration, getIteration, gatherDataToVisualize
+from .utils.main import getAttributes, getExpertAttr, getDisplayNameAttr
 
 from django.http import JsonResponse
 from django.contrib.auth.models import User
@@ -109,6 +110,11 @@ def get_expert_attributes(request):
     return Response(attributes)
 
 @api_view(['GET'])
+def get_display_names(request):
+    attributes = getDisplayNameAttr(request.user)
+    return Response(attributes)
+
+@api_view(['GET'])
 def get_learning_object(request):
     try:
         learning_data = LearningData.objects.get(user=request.user)
@@ -138,11 +144,22 @@ def upload_domain(request):
 
         table = Table(temp_file_path)
         binary_data = pickle.dumps(table)
-        attribute_names = [attr.name for attr in table.domain.attributes]
+        all_attrs = list(table.domain.attributes) + list(table.domain.metas)
+        if table.domain.class_var is not None:
+            all_attrs.append(table.domain.class_var)
+        attribute_names = [attr.name for attr in all_attrs]
+        display_names = {attr.name: attr.name for attr in all_attrs}
+        attr_descriptions = {attr.name: "" for attr in all_attrs}
+        attr_tooltips = {attr.name: "" for attr in all_attrs}
 
         # Save to DB
-        Domain.objects.create(name=name, data=binary_data, 
-                              attributes=attribute_names, expert_attributes=[])
+        Domain.objects.create(name=name, 
+                              data=binary_data, 
+                              attributes=attribute_names, 
+                              expert_attributes=[],
+                              display_names=display_names,
+                              attr_descriptions=attr_descriptions,
+                              attr_tooltips=attr_tooltips)
 
         # Return the response with the serialized domain
         serializer = DomainSerializer(Domain.objects.get(name=name))
@@ -173,9 +190,23 @@ def update_domain(request, domain_id):
         return Response({'error': 'Domain not found'}, status=status.HTTP_404_NOT_FOUND)
 
     expert_attributes = request.data.get('expert_attributes')
+    display_names = request.data.get('display_names')
+    attr_descriptions = request.data.get('attr_descriptions')
+    attr_tooltips = request.data.get('attr_tooltips')
+
     if expert_attributes is not None:
         domain.expert_attributes = expert_attributes
-        domain.save()
+
+    if display_names is not None:
+        domain.display_names = display_names
+
+    if attr_descriptions is not None:
+        domain.attr_descriptions = attr_descriptions
+
+    if attr_tooltips is not None:
+        domain.attr_tooltips = attr_tooltips
+
+    domain.save()
 
     return Response({'message': 'Domain updated successfully'})
 

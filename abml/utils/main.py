@@ -61,6 +61,9 @@ def setLearningData(user, domain_name):
     serialized_data = serialize_table(table)
     expert_attributes = domain.expert_attributes or []
     inactive_attributes = expert_attributes.copy()
+    display_names = domain.display_names
+    attr_descriptions = domain.attr_descriptions
+    attr_tooltips = domain.attr_tooltips
 
     learning_data_instance, _ = LearningData.objects.update_or_create(
         user=user,
@@ -69,7 +72,10 @@ def setLearningData(user, domain_name):
                   'name': domain_name,
                   'full_data': serialized_data,
                   'inactive_attributes': inactive_attributes,
-                  'expert_attributes': expert_attributes
+                  'expert_attributes': expert_attributes,
+                  'display_names': display_names,
+                  'attr_descriptions': attr_descriptions,
+                  'attr_tooltips': attr_tooltips
                   }
     )
 
@@ -101,7 +107,14 @@ def getExpertAttr(user):
         return learning_data_entry.expert_attributes or []
     except LearningData.DoesNotExist:
         return []
-
+    
+def getDisplayNameAttr(user):
+    try:
+        learning_data_entry = LearningData.objects.get(user=user)
+        return learning_data_entry.display_names or {}
+    except LearningData.DoesNotExist:
+        return {}
+    
 def setIteration(user):
     try:
         learning_data_entry = LearningData.objects.get(user=user)

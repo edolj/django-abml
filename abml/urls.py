@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/domains/<int:domain_id>/update/', views.update_domain, name='update_domain'),
     path('api/attributes/', views.get_attributes, name='get_attributes'),
     path('api/expert-attributes/', views.get_expert_attributes, name='get_expert_attributes'),
+    path('api/display-names/', views.get_display_names, name='get_display_names'),
     path('api/get-learning-object/', views.get_learning_object, name='get_learning_object'),
     path('api/get-charts-data/', views.get_all_numeric_attributes, name='get_all_numeric_attributes'),
 ]

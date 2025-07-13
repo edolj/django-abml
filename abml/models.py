@@ -2,6 +2,7 @@ from django.db import models
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
+from django.db import models
 
 class LearningData(models.Model):
     data = models.BinaryField()
@@ -11,6 +12,9 @@ class LearningData(models.Model):
     full_data = models.BinaryField(null=True)
     inactive_attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
     expert_attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
+    display_names = models.JSONField(default=dict, blank=True)
+    attr_descriptions = models.JSONField(default=dict, blank=True)
+    attr_tooltips = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return f"Learning Data for {self.user.username}"
@@ -18,13 +22,17 @@ class LearningData(models.Model):
 class LearningDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = LearningData
-        fields = ['name', 'iteration', 'inactive_attributes', 'expert_attributes']
+        fields = ['name', 'iteration', 'inactive_attributes', 'expert_attributes', 
+                  'display_names', 'attr_descriptions', 'attr_tooltips']
 
 class Domain(models.Model):
     name = models.CharField(max_length=255, unique=True)
     data = models.BinaryField()
     attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
     expert_attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
+    display_names = models.JSONField(default=dict, blank=True)
+    attr_descriptions = models.JSONField(default=dict, blank=True)
+    attr_tooltips = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return self.name
@@ -32,7 +40,8 @@ class Domain(models.Model):
 class DomainSerializer(serializers.ModelSerializer):
     class Meta:
         model = Domain
-        fields = ['id', 'name', 'attributes', 'expert_attributes']
+        fields = ['id', 'name', 'attributes', 'expert_attributes',
+                   'display_names', 'attr_descriptions', 'attr_tooltips']
     
 class RegisterSerializer(serializers.ModelSerializer):
     password_confirm = serializers.CharField(write_only=True)
