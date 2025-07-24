@@ -24,6 +24,21 @@ class LearningDataSerializer(serializers.ModelSerializer):
         model = LearningData
         fields = ['name', 'iteration', 'inactive_attributes', 'expert_attributes', 
                   'display_names', 'attr_descriptions', 'attr_tooltips']
+        
+class LearningIteration(models.Model):
+    learning_data = models.ForeignKey(LearningData, on_delete=models.CASCADE, related_name='iterations')
+    iteration_number = models.IntegerField()
+    chosen_arguments = ArrayField(models.CharField(max_length=100))
+    mScore = models.FloatField(default=0.0)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.learning_data.user.username} - Iteration {self.iteration_number}"
+
+class LearningIterationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LearningIteration
+        fields = ['iteration_number', 'chosen_arguments', 'mScore', 'timestamp']
 
 class Domain(models.Model):
     name = models.CharField(max_length=255, unique=True)

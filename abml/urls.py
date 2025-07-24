@@ -21,4 +21,6 @@ urlpatterns = [
     path('api/display-names/', views.get_display_names, name='get_display_names'),
     path('api/get-learning-object/', views.get_learning_object, name='get_learning_object'),
     path('api/get-charts-data/', views.get_all_numeric_attributes, name='get_all_numeric_attributes'),
+    path('api/post-data-iterations/', views.create_learning_iteration, name='create_learning_iteration'),
+    path('api/get-data-iterations/', views.get_learning_iterations, name='get_learning_iterations'),
 ]

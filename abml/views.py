@@ -11,7 +11,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Domain, LearningData
-from .models import RegisterSerializer, DomainSerializer, LearningDataSerializer
+from .models import RegisterSerializer, DomainSerializer
+from .models import LearningDataSerializer, LearningIterationSerializer
 
 from Orange.data import Table
 import pickle, tempfile, os
@@ -56,6 +57,42 @@ def get_iteration_number(request):
 def set_iteration_number(request):
     setIteration(request.user)
     return JsonResponse({'message': 'Iteration updated successfully'}, status=200)
+
+@api_view(['POST'])
+def create_learning_iteration(request):
+    data = request.data
+    try:
+        learning_data = LearningData.objects.get(user=request.user)
+    except LearningData.DoesNotExist:
+        return Response({"error": "LearningData not found"}, status=404)
+
+    serializer = LearningIterationSerializer(data={
+        "learning_data": learning_data.id,
+        "iteration_number": data.get("iteration_number"),
+        "chosen_arguments": data.get("chosen_arguments"),
+    })
+
+    if serializer.is_valid():
+        serializer.save(learning_data=learning_data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    else:
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+def get_learning_iterations(request):
+    all_data = LearningData.objects.all().select_related('user').prefetch_related('iterations')
+    result = []
+
+    for ld in all_data:
+        iterations = ld.iterations.all().order_by('iteration_number')
+        serializer = LearningIterationSerializer(iterations, many=True)
+        result.append({
+            "username": ld.user.username,
+            "domain_name": ld.name,
+            "iterations": serializer.data,
+        })
+
+    return Response(result)
     
 @api_view(['POST'])
 def register(request):
