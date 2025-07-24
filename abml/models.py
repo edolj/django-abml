@@ -3,12 +3,17 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from django.utils import timezone
+import uuid
 
 class LearningData(models.Model):
+    session_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
     data = models.BinaryField()
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     iteration = models.IntegerField(default=0)
-    name = models.CharField(max_length=255, default="", unique=True)
+    name = models.CharField(max_length=255, default="")
     full_data = models.BinaryField(null=True)
     inactive_attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
     expert_attributes = ArrayField(models.CharField(max_length=50), default=list, blank=True)
@@ -22,11 +27,12 @@ class LearningData(models.Model):
 class LearningDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = LearningData
-        fields = ['name', 'iteration', 'inactive_attributes', 'expert_attributes', 
-                  'display_names', 'attr_descriptions', 'attr_tooltips']
+        fields = ['session_id', 'name', 'iteration', 'inactive_attributes', 'expert_attributes', 
+                  'display_names', 'attr_descriptions', 'attr_tooltips', 'created_at']
         
 class LearningIteration(models.Model):
     learning_data = models.ForeignKey(LearningData, on_delete=models.CASCADE, related_name='iterations')
+    selectedExampleId = models.CharField(default="")
     iteration_number = models.IntegerField()
     chosen_arguments = ArrayField(models.CharField(max_length=100))
     mScore = models.FloatField(default=0.0)
@@ -38,7 +44,7 @@ class LearningIteration(models.Model):
 class LearningIterationSerializer(serializers.ModelSerializer):
     class Meta:
         model = LearningIteration
-        fields = ['iteration_number', 'chosen_arguments', 'mScore', 'timestamp']
+        fields = ['selectedExampleId', 'iteration_number', 'chosen_arguments', 'mScore', 'timestamp']
 
 class Domain(models.Model):
     name = models.CharField(max_length=255, unique=True)

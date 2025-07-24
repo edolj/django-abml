@@ -17,17 +17,27 @@ from .models import LearningDataSerializer, LearningIterationSerializer
 from Orange.data import Table
 import pickle, tempfile, os
 
+def get_current_session_id(user):
+    learning_data = LearningData.objects.filter(user=user).order_by('-created_at').first()
+    if not learning_data:
+        return None
+    return learning_data.session_id
+
 # Create your views here.
 # takes request -> returns response
 def learning_rules_api(request):
-    rules = learningRules(request.user)
+    sessionId = get_current_session_id(request.user)
+    rules = learningRules(request.user, sessionId)
     return JsonResponse({'rules': rules})
 
 @api_view(['POST'])
 def critical_instances(request):
     domain_name = request.data.get("domain")
     start_new = request.data.get("startNew")
-    critical_instances_data = criticalInstances(request.user, domain_name, startNewSession=start_new)
+    sessionId = get_current_session_id(request.user)
+    critical_instances_data = criticalInstances(request.user, domain_name, 
+                                                startNewSession=start_new, 
+                                                sessionId = sessionId)
     if critical_instances_data is None:
         return JsonResponse({'error': 'Failed to initialize learning data.'}, status=status.HTTP_400_BAD_REQUEST)
     return JsonResponse({'critical_instances': critical_instances_data})
@@ -38,8 +48,9 @@ def counter_examples(request):
         data = request.data
         index = data.get('index')
         user_argument = data.get('userArgument')
+        sessionId = get_current_session_id(request.user)
 
-        counterExamples, bestRule, arg_m_score, best_m_score = getCounterExamples(index, user_argument, request.user)
+        counterExamples, bestRule, arg_m_score, best_m_score = getCounterExamples(index, user_argument, request.user, sessionId)
         if "error" in counterExamples:
             return Response({'error': counterExamples["error"]}, status=status.HTTP_400_BAD_REQUEST)
         else:
@@ -50,26 +61,29 @@ def counter_examples(request):
     
 @api_view(['GET'])
 def get_iteration_number(request):
-    iterationNumber = getIteration(request.user)
+    sessionId = get_current_session_id(request.user)
+    iterationNumber = getIteration(request.user, sessionId)
     return JsonResponse({'iterationNumber': iterationNumber})
 
 @api_view(['PUT'])
 def set_iteration_number(request):
-    setIteration(request.user)
+    sessionId = get_current_session_id(request.user)
+    setIteration(request.user, sessionId)
     return JsonResponse({'message': 'Iteration updated successfully'}, status=200)
 
 @api_view(['POST'])
 def create_learning_iteration(request):
     data = request.data
-    try:
-        learning_data = LearningData.objects.get(user=request.user)
-    except LearningData.DoesNotExist:
+    learning_data = LearningData.objects.filter(user=request.user).order_by('-created_at').first()
+    if not learning_data:
         return Response({"error": "LearningData not found"}, status=404)
 
     serializer = LearningIterationSerializer(data={
         "learning_data": learning_data.id,
+        "selectedExampleId": data.get("selectedExampleId", ""),
         "iteration_number": data.get("iteration_number"),
         "chosen_arguments": data.get("chosen_arguments"),
+        "mScore": data.get("mScore", 0.0),
     })
 
     if serializer.is_valid():
@@ -138,24 +152,26 @@ def get_domains(request):
 
 @api_view(['GET'])
 def get_attributes(request):
-    attributes = getAttributes(request.user)
+    sessionId = get_current_session_id(request.user)
+    attributes = getAttributes(request.user, sessionId)
     return Response(attributes)
 
 @api_view(['GET'])
 def get_expert_attributes(request):
-    attributes = getExpertAttr(request.user)
+    sessionId = get_current_session_id(request.user)
+    attributes = getExpertAttr(request.user, sessionId)
     return Response(attributes)
 
 @api_view(['GET'])
 def get_display_names(request):
-    attributes = getDisplayNameAttr(request.user)
+    sessionId = get_current_session_id(request.user)
+    attributes = getDisplayNameAttr(request.user, sessionId)
     return Response(attributes)
 
 @api_view(['GET'])
 def get_learning_object(request):
-    try:
-        learning_data = LearningData.objects.get(user=request.user)
-    except LearningData.DoesNotExist:
+    learning_data = LearningData.objects.filter(user=request.user).order_by('-created_at').first()
+    if not learning_data:
         return Response({})
 
     serializer = LearningDataSerializer(learning_data)
@@ -249,5 +265,6 @@ def update_domain(request, domain_id):
 
 @api_view(['GET'])
 def get_all_numeric_attributes(request):
-    result = gatherDataToVisualize(request.user)
+    sessionId = get_current_session_id(request.user)
+    result = gatherDataToVisualize(request.user, sessionId)
     return JsonResponse(result)
