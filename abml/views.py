@@ -136,12 +136,15 @@ def logout_view(request):
 @api_view(['GET'])
 def check_session(request):
     if request.user.is_authenticated:
-        return JsonResponse({"authenticated": True, "username": request.user.username})
+        return JsonResponse({"authenticated": True, 
+                             "username": request.user.username,
+                             "is_superuser": request.user.is_superuser})
     return JsonResponse({"authenticated": False}, status=401)
 
 @api_view(['GET'])
 def get_users(request):
-    users = User.objects.filter(is_superuser=False).values('id', 'username', 'first_name', 'last_name', 'email')
+    users = User.objects.filter(is_superuser=False).values('id', 'username', 'first_name', 'last_name', 'email', 
+                                                           'date_joined', 'last_login', 'is_active', 'is_superuser')
     return JsonResponse(list(users), safe=False)
 
 @api_view(['GET'])
