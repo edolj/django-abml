@@ -9,7 +9,16 @@ from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentati
 from .backend.orange3_evcrules_master.orangecontrib.evcrules.rules import MEstimateEvaluator
 from ..models import LearningData, Domain
 
-learner = abrules.ABRuleLearner()
+_learner_cache = {}
+
+def get_user_id(user):
+    return user.id if hasattr(user, "id") else user["id"]
+
+def get_learner(user, sessionId):
+    key = (get_user_id(user), sessionId)
+    if key not in _learner_cache:
+        _learner_cache[key] = abrules.ABRuleLearner()
+    return _learner_cache[key]
 
 def addArgument(learning_data, row_index, user_argument, full_data, user, sessionId):
     # Find the index of the "Arguments" column in the metas
@@ -168,6 +177,7 @@ def gatherDataToVisualize(user, sessionId):
 # http://localhost:8000/api/learning-rules/
 def learningRules(user, sessionId):
     learning_data, _ = getLearningData(user, sessionId)
+    learner = get_learner(user, sessionId)
     classifier = learner(learning_data)
     
     # Collect data into a list of dictionaries
@@ -232,22 +242,28 @@ def criticalInstances(user, domain_name, startNewSession=False, sessionId=None):
         sessionId = learning_data_entry.session_id
         learning_data, full_data = getLearningData(user, sessionId)
 
-    #print("Class variable:", learning_data.domain.class_var)
-    #print("Class values:", learning_data.domain.class_var.values)
-    #print("Class distribution:")
-    #for c in learning_data.domain.class_var.values:
-    #    print(f"Class {c}: ", sum(1 for d in learning_data if d.get_class() == c))
-
+    learner = get_learner(user, sessionId)
+    _ = learner(learning_data)
+    iteration = getIteration(user, sessionId)
+    
     target_class = learning_data.domain.class_var.name if learning_data.domain.class_var else None
     crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
 
     # Extract the critical example from the original dataset
-    critical_instances = learning_data[crit_ind]
+    if iteration < 3:
+        selected_indices = crit_ind[-5:]
+        selected_problematic = problematic[-5:]
+        selected_instances = learning_data[selected_indices]
+    else:
+        selected_indices = crit_ind[:5]
+        selected_problematic = problematic[:5]
+        selected_instances = learning_data[selected_indices]
+
     domains = get_categorical_and_numerical_attributes(full_data.domain)
 
     pairs = []
     detail_data = []
-    for index in crit_ind[-5:]:
+    for index in selected_indices:
         instance = full_data[index]
         for d in domains:
             pairs.append((d, str(instance[d])))
@@ -255,10 +271,10 @@ def criticalInstances(user, domain_name, startNewSession=False, sessionId=None):
         pairs = []
     
     critical_instances_list = []
-    for index, instance in enumerate(critical_instances[-5:]):
+    for index, instance in enumerate(selected_instances):
         critical_instances_list.append({
-            "critical_index": str(crit_ind[-5:][index]),
-            "problematic": str(round(problematic[-5:][index], 3)),
+            "critical_index": str(selected_indices[index]),
+            "problematic": str(round(selected_problematic[index], 3)),
             "target_class": str(instance[target_class]),
             "id": str(instance["id"])
         })
@@ -277,6 +293,7 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
     update_table_database(learning_data, user, sessionId, user_argument, full_data)
     learning_data, full_data = getLearningData(user, sessionId)
     
+    learner = get_learner(user, sessionId)
     try:
         arg_rule, counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
         arg_m_score = learner.evaluator_norm.evaluate_rule(arg_rule)
