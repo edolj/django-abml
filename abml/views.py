@@ -50,12 +50,19 @@ def counter_examples(request):
         user_argument = data.get('userArgument')
         sessionId = get_current_session_id(request.user)
 
-        counterExamples, bestRule, arg_m_score, best_m_score = getCounterExamples(index, user_argument, request.user, sessionId)
-        if "error" in counterExamples:
+        counterExamples, bestRule, arg_m_score, best_m_score = getCounterExamples(
+            index, user_argument, request.user, sessionId
+        )
+
+        if isinstance(counterExamples, dict) and "error" in counterExamples:
             return Response({'error': counterExamples["error"]}, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response({'counterExamples': counterExamples, 'bestRule': bestRule,
-                             'arg_m_score': arg_m_score, 'best_m_score': best_m_score})
+
+        return Response({
+            'counterExamples': counterExamples,
+            'bestRule': bestRule,
+            'arg_m_score': arg_m_score,
+            'best_m_score': best_m_score
+        })
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     

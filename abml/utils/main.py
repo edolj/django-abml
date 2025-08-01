@@ -306,14 +306,17 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
         return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", "", ""
     
     counter_examples = []
-    if len(counters) > 0:
+    if counters:
         counterEx = full_data[list(counters)]
         domains = get_categorical_and_numerical_attributes(full_data.domain)
+
         for counter in counterEx:
-            values = []
-            for d in domains:
-                values.append(str(counter[d]))
-            counter_examples.append(values)
+            counter_id = str(counter["id"]) if "id" in counter.domain else "Unknown"
+            values = [str(counter[d]) for d in domains]
+            counter_examples.append({
+                "id": counter_id,
+                "values": values
+            })
 
     return counter_examples, str(best_rule), arg_m_score, best_m_score
 
