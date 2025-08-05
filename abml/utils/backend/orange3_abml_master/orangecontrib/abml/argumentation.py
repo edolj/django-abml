@@ -216,10 +216,13 @@ def generateExtendedRules(rule, unused_att, data, index):
     ext_rules = []
 
     for att in unused_att:
-        column = data.domain.attributes.index(att)
+        column = data.domain.index(att)
 
         # Get the value of this attribute in the current example
-        ex_value = data[index][column]
+        if att in data.domain.metas:
+            ex_value = data[index].metas[column]
+        else:
+            ex_value = data[index][column]
 
         if att.is_discrete:
             # Get index of value in domain
@@ -235,7 +238,10 @@ def generateExtendedRules(rule, unused_att, data, index):
             ext_rules.append(new_rule_eq)
 
         elif att.is_continuous:
-            value = ex_value
+            try:
+                value = float(ex_value)
+            except (TypeError, ValueError):
+                continue  # skip invalid numeric values
 
             # "<=" selector
             selector_le = Selector(column=column, op="<=", value=value)

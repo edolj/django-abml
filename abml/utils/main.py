@@ -20,7 +20,7 @@ def get_learner(user, sessionId):
         _learner_cache[key] = abrules.ABRuleLearner()
     return _learner_cache[key]
 
-def addArgument(learning_data, row_index, user_argument, full_data, user, sessionId):
+def addArgument(learning_data, row_index, user_argument):
     # Find the index of the "Arguments" column in the metas
     arguments_index = next((i for i, meta in enumerate(learning_data.domain.metas) if meta.name == "Arguments"), None)
     
@@ -30,14 +30,49 @@ def addArgument(learning_data, row_index, user_argument, full_data, user, sessio
 
     # Update the value in the "Arguments" column for the specified row
     learning_data[row_index].metas[arguments_index] = user_argument
-    full_data[row_index].metas[arguments_index] = user_argument
 
-    serialized_data = serialize_table(full_data)
-    LearningData.objects.update_or_create(
-        user=user,
-        session_id = sessionId,
-        defaults={'full_data': serialized_data}
-    )
+    #serialized_data = serialize_table(learning_data)
+    #LearningData.objects.update_or_create(
+    #    user=user,
+    #    session_id = sessionId,
+    #    defaults={'data': serialized_data}
+    #)
+
+def mark_attribute_as_meta(table, attr_name):
+    attr = next((a for a in table.domain.attributes if a.name == attr_name), None)
+    if not attr:
+        raise ValueError(f"Attribute '{attr_name}' not found in attributes.")
+
+    new_attrs = [a for a in table.domain.attributes if a.name != attr_name]
+    new_metas = list(table.domain.metas) + [attr]
+    new_domain = OrangeDomain(new_attrs, table.domain.class_var, metas=new_metas)
+    new_table = Table.from_table(new_domain, table)
+    attr_index = table.domain.attributes.index(attr)
+    meta_index = new_metas.index(attr)
+
+    for i, row in enumerate(table):
+        new_table[i].metas[meta_index] = row[attr_index]
+
+    return new_table
+
+def unmark_attribute_as_meta(table, attr_name):
+    try:
+        meta_var = next(m for m in table.domain.metas if m.name == attr_name)
+    except StopIteration:
+        raise ValueError(f"Meta attribute '{attr_name}' not found.")
+
+    new_attrs = list(table.domain.attributes) + [meta_var]
+    new_metas = [m for m in table.domain.metas if m.name != attr_name]
+    new_domain = OrangeDomain(new_attrs, table.domain.class_var, metas=new_metas)
+    new_table = Table.from_table(new_domain, table)
+
+    meta_index = next(i for i, var in enumerate(table.domain.metas) if var.name == attr_name)
+    attr_index = len(new_attrs) - 1  # new attr added at the end
+
+    for i, row in enumerate(table):
+        new_table[i][attr_index] = row.metas[meta_index]
+
+    return new_table
 
 def setLearningData(user, domain_name):
     try:
@@ -51,19 +86,24 @@ def setLearningData(user, domain_name):
         return None
     
     table = pickle.loads(domain.data)
-    serialized_data = serialize_table(table)
+    serialize_full_data = serialize_table(table)
     expert_attributes = domain.expert_attributes or []
     inactive_attributes = expert_attributes.copy()
     display_names = domain.display_names
     attr_descriptions = domain.attr_descriptions
     attr_tooltips = domain.attr_tooltips
 
+    for attribute in inactive_attributes:
+        table = mark_attribute_as_meta(table, attribute)
+
+    serialized_data = serialize_table(table)
+
     learning_data_instance = LearningData.objects.create(
         user=user,
         data=serialized_data, 
         iteration=0, 
         name=domain_name,
-        full_data=serialized_data,
+        full_data=serialize_full_data,
         inactive_attributes=inactive_attributes,
         expert_attributes=expert_attributes,
         display_names=display_names,
@@ -82,8 +122,7 @@ def getLearningData(user, sessionId):
     
     # Deserialize the data
     full_data = deserialize_table(learning_data_entry.full_data)
-    inactive_attrs = learning_data_entry.inactive_attributes or []
-    active_data = remove_inactive_attributes(full_data, inactive_attrs)
+    active_data = deserialize_table(learning_data_entry.data)
     return active_data, full_data
 
 def getInactiveAttr(user, sessionId):
@@ -129,17 +168,33 @@ def serialize_table(table):
 def deserialize_table(data):
     return pickle.loads(data)
 
-def update_table_database(data, user, sessionId, user_argument, full_data):
+def update_table_database(data, user, sessionId, user_argument):
     inactive_attrs = getInactiveAttr(user, sessionId)
     extracted_attrs = extract_attributes(user_argument)
     for attr in extracted_attrs:
         if attr in inactive_attrs:
             inactive_attrs.remove(attr)
-            data = add_attribute_back(full_data, data, attr)
-            
+            data = unmark_attribute_as_meta(data, attr)
+
+    return data
+
+def saveArgumentToDatabase(critical_index, user_argument, user, sessionId):
+    learning_data, _ = getLearningData(user, sessionId)
+    arguments_index = next((i for i, meta in enumerate(learning_data.domain.metas) if meta.name == "Arguments"), None)
+    userArgument = ",".join(user_argument)
+    formatedArg = "{{{}}}".format(userArgument)
+    learning_data[critical_index].metas[arguments_index] = formatedArg
+
+    inactive_attrs = getInactiveAttr(user, sessionId)
+    extracted_attrs = extract_attributes(userArgument)
+    for attr in extracted_attrs:
+        if attr in inactive_attrs:
+            inactive_attrs.remove(attr)
+            learning_data = unmark_attribute_as_meta(learning_data, attr)
+
     # Serialize the updated Table object
-    serialized_data = serialize_table(data)
-    
+    serialized_data = serialize_table(learning_data)
+
     # Update the database entry
     LearningData.objects.update_or_create(
         user=user,
@@ -147,16 +202,16 @@ def update_table_database(data, user, sessionId, user_argument, full_data):
         defaults={'data': serialized_data, 'inactive_attributes': inactive_attrs}
     )
 
-def remove_inactive_attributes(data, inactive_attrs):
-    active_attrs = [a for a in data.domain.attributes if a.name not in inactive_attrs]
-    domain = OrangeDomain(active_attrs, data.domain.class_var, data.domain.metas)
-    return Table.from_table(domain, data)
+#def remove_inactive_attributes(data, inactive_attrs):
+#    active_attrs = [a for a in data.domain.attributes if a.name not in inactive_attrs]
+#    domain = OrangeDomain(active_attrs, data.domain.class_var, data.domain.metas)
+#    return Table.from_table(domain, data)
 
-def add_attribute_back(full_data, current_data, attr_name):
-    current_attr_names = [a.name for a in current_data.domain.attributes]
-    new_attrs = [a for a in full_data.domain.attributes if a.name in current_attr_names or a.name == attr_name]
-    domain = OrangeDomain(new_attrs, full_data.domain.class_var, full_data.domain.metas)
-    return Table.from_table(domain, full_data)
+#def add_attribute_back(full_data, current_data, attr_name):
+#    current_attr_names = [a.name for a in current_data.domain.attributes]
+#    new_attrs = [a for a in full_data.domain.attributes if a.name in current_attr_names or a.name == attr_name]
+#    domain = OrangeDomain(new_attrs, full_data.domain.class_var, full_data.domain.metas)
+#    return Table.from_table(domain, full_data)
 
 def extract_attributes(input_str):
     pattern = r'([\w./]+)\s*(?:<=|>=|=|<|>)?'
@@ -287,12 +342,10 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
     # change it to format {argument}
     formatedArg = "{{{}}}".format(user_argument)
     # add argument to argument column in row critical_index
-    if addArgument(learning_data, int(critical_index), formatedArg, full_data, user, sessionId) == False:
+    if addArgument(learning_data, int(critical_index), formatedArg) == False:
         return {"error": "Failed to add argument to column. Please try again."}, "", "", ""
     
-    update_table_database(learning_data, user, sessionId, user_argument, full_data)
-    learning_data, full_data = getLearningData(user, sessionId)
-    
+    learning_data = update_table_database(learning_data, user, sessionId, user_argument)
     learner = get_learner(user, sessionId)
     try:
         arg_rule, counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))

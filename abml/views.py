@@ -1,6 +1,7 @@
 from .utils.main import learningRules, criticalInstances, getCounterExamples
 from .utils.main import setIteration, getIteration, gatherDataToVisualize
 from .utils.main import getAttributes, getExpertAttr, getDisplayNameAttr
+from .utils.main import saveArgumentToDatabase
 
 from django.http import JsonResponse
 from django.contrib.auth.models import User
@@ -84,6 +85,11 @@ def create_learning_iteration(request):
     learning_data = LearningData.objects.filter(user=request.user).order_by('-created_at').first()
     if not learning_data:
         return Response({"error": "LearningData not found"}, status=404)
+
+    critical_index = int(data.get("index"))
+    user_argument = data.get("chosen_arguments")
+    sessionId = get_current_session_id(request.user)
+    saveArgumentToDatabase(critical_index, user_argument, request.user, sessionId)
 
     serializer = LearningIterationSerializer(data={
         "learning_data": learning_data.id,
