@@ -7,7 +7,7 @@ from Orange.data import Table, Domain as OrangeDomain, ContinuousVariable
 from Orange.classification.rules import Rule, Selector
 from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentation
 from .backend.orange3_evcrules_master.orangecontrib.evcrules.rules import MEstimateEvaluator
-from ..models import LearningData, Domain
+from ..models import LearningData, Domain, SkillKnowledge
 
 _learner_cache = {}
 
@@ -111,6 +111,13 @@ def setLearningData(user, domain_name):
         attr_tooltips=attr_tooltips
     )
 
+    for attr in expert_attributes:
+        SkillKnowledge.objects.create(
+            user=user,
+            learning_data=learning_data_instance,
+            attribute=attr
+        )
+
     return learning_data_instance
 
 def getLearningData(user, sessionId):
@@ -202,16 +209,31 @@ def saveArgumentToDatabase(critical_index, user_argument, user, sessionId):
         defaults={'data': serialized_data, 'inactive_attributes': inactive_attrs}
     )
 
-#def remove_inactive_attributes(data, inactive_attrs):
-#    active_attrs = [a for a in data.domain.attributes if a.name not in inactive_attrs]
-#    domain = OrangeDomain(active_attrs, data.domain.class_var, data.domain.metas)
-#    return Table.from_table(domain, data)
+def update_skill_knowledge(user, learning_data, attribute, correct):
+    try:
+        knowledge = SkillKnowledge.objects.get(
+            user=user,
+            learning_data=learning_data,
+            attribute=attribute
+        )
+    except SkillKnowledge.DoesNotExist:
+        return
 
-#def add_attribute_back(full_data, current_data, attr_name):
-#    current_attr_names = [a.name for a in current_data.domain.attributes]
-#    new_attrs = [a for a in full_data.domain.attributes if a.name in current_attr_names or a.name == attr_name]
-#    domain = OrangeDomain(new_attrs, full_data.domain.class_var, full_data.domain.metas)
-#    return Table.from_table(domain, full_data)
+    # Bayesian Knowledge Tracing update
+    P_L = knowledge.P_L
+    P_T = knowledge.P_T
+    P_G = knowledge.P_G
+    P_S = knowledge.P_S
+
+    if correct:
+        P_correct = P_L * (1 - P_S) + (1 - P_L) * P_G
+        P_L_given_obs = (P_L * (1 - P_S)) / P_correct
+    else:
+        P_correct = P_L * P_S + (1 - P_L) * (1 - P_G)
+        P_L_given_obs = (P_L * P_S) / P_correct
+
+    knowledge.P_L = P_L_given_obs + (1 - P_L_given_obs) * P_T
+    knowledge.save()
 
 def extract_attributes(input_str):
     pattern = r'([\w./]+)\s*(?:<=|>=|=|<|>)?'
@@ -354,6 +376,15 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
 
         if arg_m_score > best_m_score:
             best_rule = arg_rule
+
+        threshold = 0.1  # allow small difference
+        correct = arg_m_score >= best_m_score - threshold
+        learning_data_object = LearningData.objects.get(user=user, session_id=sessionId)
+        for attr in extract_attributes(user_argument):
+            update_skill_knowledge(user=user,
+                                   learning_data=learning_data_object,
+                                   attribute=attr,
+                                   correct=correct)
             
     except ValueError as e:
         return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", "", ""

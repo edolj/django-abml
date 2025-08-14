@@ -11,9 +11,9 @@ from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Domain, LearningData
-from .models import RegisterSerializer, DomainSerializer
-from .models import LearningDataSerializer, LearningIterationSerializer
+from .models import Domain, DomainSerializer, RegisterSerializer
+from .models import LearningData, LearningDataSerializer, LearningIterationSerializer
+from .models import SkillKnowledge, SkillKnowledgeSerializer
 
 from Orange.data import Table
 import pickle, tempfile, os
@@ -284,3 +284,17 @@ def get_all_numeric_attributes(request):
     sessionId = get_current_session_id(request.user)
     result = gatherDataToVisualize(request.user, sessionId)
     return JsonResponse(result)
+
+@api_view(['GET'])
+def get_skill_knowledge(request):
+    try:
+        user = request.user
+        sessionId = get_current_session_id(user)
+        learning_data = LearningData.objects.get(user=user, session_id=sessionId)
+        skills = SkillKnowledge.objects.filter(user=user, learning_data=learning_data)
+
+        serializer = SkillKnowledgeSerializer(skills, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+

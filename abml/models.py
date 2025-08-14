@@ -83,3 +83,21 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         return user
+
+class SkillKnowledge(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    learning_data = models.ForeignKey(LearningData, on_delete=models.CASCADE)
+    attribute = models.CharField(max_length=100)
+
+    P_L = models.FloatField(default=0.1)
+    P_T = models.FloatField(default=0.2)
+    P_G = models.FloatField(default=0.15)
+    P_S = models.FloatField(default=0.1)
+
+    class Meta:
+        unique_together = ('user', 'learning_data', 'attribute')
+
+class SkillKnowledgeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SkillKnowledge
+        fields = ['attribute', 'P_L']
