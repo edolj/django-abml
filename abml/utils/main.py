@@ -365,7 +365,7 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
     formatedArg = "{{{}}}".format(user_argument)
     # add argument to argument column in row critical_index
     if addArgument(learning_data, int(critical_index), formatedArg) == False:
-        return {"error": "Failed to add argument to column. Please try again."}, "", "", ""
+        return {"error": "Failed to add argument to column. Please try again."}, "", "", "", ""
     
     learning_data = update_table_database(learning_data, user, sessionId, user_argument)
     learner = get_learner(user, sessionId)
@@ -387,7 +387,7 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
                                    correct=correct)
             
     except ValueError as e:
-        return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", "", ""
+        return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", "", "", ""
     
     counter_examples = []
     if counters:
@@ -402,7 +402,7 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
                 "values": values
             })
 
-    return counter_examples, str(best_rule), arg_m_score, best_m_score
+    return counter_examples, str(arg_rule), str(best_rule), arg_m_score, best_m_score
 
 def main():
     """

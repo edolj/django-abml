@@ -24,4 +24,5 @@ urlpatterns = [
     path('api/post-data-iterations/', views.create_learning_iteration, name='create_learning_iteration'),
     path('api/get-data-iterations/', views.get_learning_iterations, name='get_learning_iterations'),
     path('api/get-skills/', views.get_skill_knowledge, name='get_skill_knowledge'),
+    path('api/get-summary/', views.get_summary, name='get_summary'),
 ]

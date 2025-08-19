@@ -17,6 +17,10 @@ from .models import SkillKnowledge, SkillKnowledgeSerializer
 
 from Orange.data import Table
 import pickle, tempfile, os
+from django.conf import settings
+from openai import OpenAI
+
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 def get_current_session_id(user):
     learning_data = LearningData.objects.filter(user=user).order_by('-created_at').first()
@@ -51,7 +55,7 @@ def counter_examples(request):
         user_argument = data.get('userArgument')
         sessionId = get_current_session_id(request.user)
 
-        counterExamples, bestRule, arg_m_score, best_m_score = getCounterExamples(
+        counterExamples, argRule, bestRule, arg_m_score, best_m_score = getCounterExamples(
             index, user_argument, request.user, sessionId
         )
 
@@ -60,6 +64,7 @@ def counter_examples(request):
 
         return Response({
             'counterExamples': counterExamples,
+            'argRule': argRule,
             'bestRule': bestRule,
             'arg_m_score': arg_m_score,
             'best_m_score': best_m_score
@@ -156,8 +161,7 @@ def check_session(request):
 
 @api_view(['GET'])
 def get_users(request):
-    users = User.objects.filter(is_superuser=False).values('id', 'username', 'first_name', 'last_name', 'email', 
-                                                           'date_joined', 'last_login', 'is_active', 'is_superuser')
+    users = User.objects.filter(is_superuser=False).order_by('id').values('id', 'username', 'first_name', 'last_name', 'email', 'date_joined', 'last_login', 'is_active', 'is_superuser')
     return JsonResponse(list(users), safe=False)
 
 @api_view(['GET'])
@@ -297,4 +301,67 @@ def get_skill_knowledge(request):
         return Response(serializer.data)
     except Exception as e:
         return Response({'error': str(e)}, status=400)
+    
+@api_view(['POST'])
+def get_summary(request):
+    data = request.data
+    
+    domainName = data.get('domainName', '')
+    details = data.get('details', {})
+    display_names = data.get('displayNames', {})
+    target_class = data.get('targetClass', '')
+    arg_rule = data.get('argRule', '')
+    user_arguments = data.get('user_arguments', [])
+    
+    readable_arguments = []
+    for arg in user_arguments:
+        if arg.endswith(">="):
+            attr = arg[:-2].strip()
+            readable_arguments.append(f"- {display_names.get(attr, attr)} is high")
+        elif arg.endswith("<="):
+            attr = arg[:-2].strip()
+            readable_arguments.append(f"- {display_names.get(attr, attr)} is low")
+        else:
+            attr = arg.strip()
+            readable_arguments.append(f"- {display_names.get(attr, attr)} matches the example")
+
+    system_message = {
+        "role": "system",
+        "content": (
+            "You are an intelligent and encouraging tutor in an argument-based learning system. "
+            "After each learning iteration, your task is to provide a short summary for the learner. "
+            "Explain clearly and simply:\n"
+            "- Why the example was classified as it was.\n"
+            "- How the selected attributes support this classification.\n"
+            "- What the learner should take away from this step (the key insight).\n"
+            "Avoid technical jargon, keep it brief (3-4 sentences), and focus on helping the learner understand."
+        )
+    }
+
+    user_message = {
+        "role": "user",
+        "content": (
+            f"In the domain '{domainName}', the learner is exploring how examples are classified.\n\n"
+            f"This example was classified as: {target_class}\n\n"
+            "Key example details:\n" +
+            "\n".join([f"- {display_names.get(attr, attr)}: {val}" for attr, val in details]) + "\n\n"
+            "The learner selected these attributes to explain the classification:\n" +
+            "\n".join(readable_arguments) + "\n\n"
+            f"The rule generated from these attributes:\n{arg_rule}\n\n"
+            "Please summarize what the student learned in this iteration. "
+            "Focus on how the selected attributes support the classification and what key concept or insight was gained. "
+            "Avoid unnecessary numbers or technical terms. Keep the summary to 3-4 sentences."
+        )
+    }
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-5",
+            messages=[ system_message, user_message],
+        )
+        summary = response.choices[0].message.content
+        return Response({"summary": summary})
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
 

@@ -154,7 +154,8 @@ def analyze_argument(learner, data, index):
         raise ValueError("No rules generated for the given example.")
     
     rule = rules[0]
-    # print(rule, rule.curr_class_dist, rule.quality)
+    original_rule_score = learner.evaluator_norm.evaluate_rule(rule)
+
     counters = rule.covered_examples & (Y != rule.target_class)
     counters = np.where(counters)[0]
     counter_errs = prob_errors[counters]
@@ -166,14 +167,12 @@ def analyze_argument(learner, data, index):
         # Handle the case where no counterexamples were found
         counters_vals = []
         counters = []
-        #print("No counter examples found for the analyzed example.")
     
     if len(rule.selectors) == 0:
         prune = [(None, 0)]
     else:
         prune = []
         for sel in rule.selectors:
-            # create a rule without this selector
             tmp_rule = Orange.classification.rules.Rule(selectors=[r for r in rule.selectors if r != sel],
                                                         domain=data.domain)
             tmp_rule.filter_and_store(X, Y, W, rule.target_class)
@@ -183,21 +182,18 @@ def analyze_argument(learner, data, index):
             tmp_m_score = learner.evaluator_norm.evaluate_rule(tmp_rule)
             prune.append((tmp_rule, tmp_m_score))
 
-    # Determine the best pruned rule
-    best_pruned_rule, best_pruned_score = max(prune, key=lambda x: x[1])
-
-    # Extending the full rule with new attributes
+    # Generate extended rules
     unused_attributes = get_unused_attributes(rule, data)
     extended_rules = generateExtendedRules(rule, unused_attributes, data, index)
     evaluated_extended_rules = evaluate_rules(learner, extended_rules, X, Y, W, rule.target_class)
-    # Determine the best extended rule
-    best_extended_rule, best_extended_score = max(evaluated_extended_rules, key=lambda x: x[1])
 
-    # ext rule has better quality
-    if best_pruned_score < best_extended_score:
-        best_rule = best_extended_rule
-    else:
-        best_rule = best_pruned_rule
+    # Combine all candidates including original
+    candidates = [(rule, original_rule_score)]
+    candidates.extend(prune)
+    candidates.extend(evaluated_extended_rules)
+
+    # Select the best candidate by score
+    best_rule, best_score = max(candidates, key=lambda x: x[1])
 
     return rule, counters, best_rule
 
