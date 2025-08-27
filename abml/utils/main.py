@@ -21,22 +21,19 @@ def get_learner(user, sessionId):
     return _learner_cache[key]
 
 def addArgument(learning_data, row_index, user_argument):
-    # Find the index of the "Arguments" column in the metas
-    arguments_index = next((i for i, meta in enumerate(learning_data.domain.metas) if meta.name == "Arguments"), None)
+    arguments_var = next((meta for meta in learning_data.domain.metas if meta.name == "Arguments"), None)
     
-    if arguments_index is None:
+    if arguments_var is None:
         print("Error: 'Arguments' meta attribute not found.")
         return False
+    
+    old_val = learning_data[row_index][arguments_var]
+    if old_val in (None, ""):
+        learning_data[row_index][arguments_var] = user_argument
+    else:
+        learning_data[row_index][arguments_var] = f"{old_val},{user_argument}"
 
-    # Update the value in the "Arguments" column for the specified row
-    learning_data[row_index].metas[arguments_index] = user_argument
-
-    #serialized_data = serialize_table(learning_data)
-    #LearningData.objects.update_or_create(
-    #    user=user,
-    #    session_id = sessionId,
-    #    defaults={'data': serialized_data}
-    #)
+    return True
 
 def mark_attribute_as_meta(table, attr_name):
     attr = next((a for a in table.domain.attributes if a.name == attr_name), None)
@@ -187,10 +184,9 @@ def update_table_database(data, user, sessionId, user_argument):
 
 def saveArgumentToDatabase(critical_index, user_argument, user, sessionId):
     learning_data, _ = getLearningData(user, sessionId)
-    arguments_index = next((i for i, meta in enumerate(learning_data.domain.metas) if meta.name == "Arguments"), None)
     userArgument = ",".join(user_argument)
     formatedArg = "{{{}}}".format(userArgument)
-    learning_data[critical_index].metas[arguments_index] = formatedArg
+    addArgument(learning_data, critical_index, formatedArg)
 
     inactive_attrs = getInactiveAttr(user, sessionId)
     extracted_attrs = extract_attributes(userArgument)
