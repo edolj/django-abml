@@ -3,7 +3,7 @@
 __author__ = 'edo'
 
 import re, pickle
-from Orange.data import Table, Domain as OrangeDomain, ContinuousVariable
+from Orange.data import Table, Domain as OrangeDomain, ContinuousVariable, StringVariable
 from Orange.classification.rules import Rule, Selector
 from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentation
 from .backend.orange3_evcrules_master.orangecontrib.evcrules.rules import MEstimateEvaluator
@@ -34,6 +34,22 @@ def addArgument(learning_data, row_index, user_argument):
         learning_data[row_index][arguments_var] = f"{old_val},{user_argument}"
 
     return True
+
+def add_arguments_meta_column(data: Table) -> Table:
+    if any(m.name == "Arguments" for m in data.domain.metas):
+        return data
+
+    arguments_var = StringVariable("Arguments")
+    new_domain = Domain(
+        data.domain.attributes,
+        data.domain.class_var,
+        metas=[arguments_var] + list(data.domain.metas)
+    )
+
+    new_data = Table.from_table(new_domain, data)
+    new_data[:, arguments_var] = [[""] for _ in range(len(new_data))]
+
+    return new_data
 
 def mark_attribute_as_meta(table, attr_name):
     attr = next((a for a in table.domain.attributes if a.name == attr_name), None)
@@ -82,7 +98,8 @@ def setLearningData(user, domain_name):
         print(f"No data found for domain '{domain_name}'")
         return None
     
-    table = pickle.loads(domain.data)
+    table = deserialize_table(domain.data)
+    table = add_arguments_meta_column(table)
     serialize_full_data = serialize_table(table)
     expert_attributes = domain.expert_attributes or []
     inactive_attributes = expert_attributes.copy()
@@ -316,7 +333,6 @@ def criticalInstances(user, domain_name, startNewSession=False, sessionId=None):
         learning_data, full_data = getLearningData(user, sessionId)
 
     learner = get_learner(user, sessionId)
-    _ = learner(learning_data)
     iteration = getIteration(user, sessionId)
     
     target_class = learning_data.domain.class_var.name if learning_data.domain.class_var else None

@@ -67,7 +67,7 @@ def find_critical(learner, data, n=5, k=5, random_state=0):
     # CV
     skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=random_state)
     problematic = np.zeros(len(data))
-    problematic_rules = [[] for d in data]
+    #problematic_rules = [[] for d in data]
     for learn_ind, test_ind in skf.split(data.X, data.Y):
         # move test_ind with arguments to learn_ind
         arg_ind = []
@@ -99,7 +99,7 @@ def find_critical(learner, data, n=5, k=5, random_state=0):
             c = int(d.get_class())
             # find best rule covering this example (best_rule * prediction)
             problematic[t] = (1 - best_covered[ti]) * (1 - p[c])
-            problematic_rules[t] = [r for ri, r in enumerate(rules) if cov[ti, ri]]
+            #problematic_rules[t] = [r for ri, r in enumerate(rules) if cov[ti, ri]]
 
     # compute Mahalanobis distance between instances
     dist_matrix = squareform(pdist(data.X, metric="seuclidean"))
@@ -124,8 +124,7 @@ def find_critical(learner, data, n=5, k=5, random_state=0):
     # sort critical indices given problematicness
     crit_ind = sorted(crit_ind, key=lambda x: -problematic[x])
 
-    return (crit_ind, problematic[crit_ind],
-            [problematic_rules[i] for i in crit_ind])
+    return (crit_ind, problematic[crit_ind], None) #[problematic_rules[i] for i in crit_ind])
 
 def analyze_argument(learner, data, index):
     """
