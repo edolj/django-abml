@@ -106,54 +106,58 @@ class ABRuleLearner(RulesStar):
             elif isinstance(value, str):
                 # set maximum/minimum value
                 if op == ">=":
-                    value = np.min(data.X[column])
+                    value = np.min(data.X[:, column])
                 else:
-                    value = np.max(data.X[column])
+                    value = np.max(data.X[:, column])
+                unfinished.append(aci)
             selectors.append(Selector(column=column, op=op, value=value))
         rule = Rule(selectors=selectors, domain=data.domain)
         rule.filter_and_store(X, Y, W, Y[inst])
         return rule, unfinished
 
     def specialize(self, rule, unfinished_selectors, data, instance_index):
-        """ Specialization of rule that is consistent with arguments (unfinished selectors). """
         X, Y, W = data.X, data.Y, data.W if data.W else None
         Y = Y.astype(dtype=int)
 
         rule.general_validator = self.rule_finder.general_validator
         self.rule_finder.search_strategy.storage = {}
-        rules = [rule]
-        star = [rule]
+
+        star = [(rule, list(unfinished_selectors))]
+        completed_rules = []
+
         while star:
             new_star = []
-            for rs in star:
-                refined = self.rule_finder.search_strategy.refine_rule(X, Y, W, rs)
-                # check each refined rule whether it is consistent with unfinished_selectors
-                for ref_rule in refined:
-                    # check last selector if it is consistent with unfinished_selectors
+            for rs, unfinished in star:
+                refined_rules = self.rule_finder.search_strategy.refine_rule(X, Y, W, rs)
+                for ref_rule in refined_rules:
                     sel = ref_rule.selectors[-1]
-                    for i, (old_sel) in enumerate(ref_rule.selectors[:-1]):
-                        if (old_sel.column, old_sel.op) == (sel.column, sel.op) and \
-                                        i in unfinished_selectors:
-                            # this rules is candidate for further specialization
-                            # create a copy of rule
-                            new_rule = Rule(selectors=copy(rule.selectors),
-                                            domain=rule.domain,
-                                            initial_class_dist=rule.initial_class_dist,
-                                            prior_class_dist=rule.prior_class_dist,
-                                            quality_evaluator=rule.quality_evaluator,
-                                            complexity_evaluator=rule.complexity_evaluator,
-                                            significance_validator=rule.significance_validator,
-                                            general_validator=rule.general_validator)
-                            new_rule.selectors[i] = Selector(column=sel.column,
-                                                             op=sel.op,
-                                                             value=sel.value)
+                    for i, old_sel in enumerate(ref_rule.selectors[:-1]):
+                        if (old_sel.column, old_sel.op) == (sel.column, sel.op) and i in unfinished:
+                            # Create a new rule with that selector concretized
+                            new_rule = Rule(
+                                selectors=copy(rs.selectors),
+                                domain=rule.domain,
+                                initial_class_dist=rule.initial_class_dist,
+                                prior_class_dist=rule.prior_class_dist,
+                                quality_evaluator=rule.quality_evaluator,
+                                complexity_evaluator=rule.complexity_evaluator,
+                                significance_validator=rule.significance_validator,
+                                general_validator=rule.general_validator,
+                            )
+                            new_rule.selectors[i] = Selector(column=sel.column, op=sel.op, value=sel.value)
                             new_rule.filter_and_store(X, Y, W, rule.target_class)
                             if new_rule.covered_examples[instance_index]:
-                                rules.append(new_rule)
-                                new_star.append(new_rule)
+                                # Create a new unfinished list without the just-resolved selector
+                                remaining_unfinished = [u for u in unfinished if u != i]
+                                if remaining_unfinished:
+                                    new_star.append((new_rule, remaining_unfinished))
+                                else:
+                                    completed_rules.append(new_rule)
                             break
             star = new_star
-        return rules
+
+        # If no specialization was needed, return the original rule
+        return completed_rules or [rule]
 
     @staticmethod
     def parse_constraint(att_cons, data, inst):
@@ -226,6 +230,3 @@ class ABRuleLearner(RulesStar):
                     indices[ind] = 1
         bestr[indices] = rule
         bestq[indices] = rule.quality
-
-if __name__ == '__main__':
-    print()

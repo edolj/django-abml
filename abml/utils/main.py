@@ -2,12 +2,16 @@
 # -*- coding: utf-8 -*- 
 __author__ = 'edo'
 
-import re, pickle
+import logging, re, pickle
 from Orange.data import Table, Domain as OrangeDomain, ContinuousVariable, StringVariable
 from Orange.classification.rules import Rule, Selector
 from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentation
+from .backend.orange3_abml_master.orangecontrib.abml.examples import evaluate
 from .backend.orange3_evcrules_master.orangecontrib.evcrules.rules import MEstimateEvaluator
 from ..models import LearningData, Domain, SkillKnowledge
+
+logger = logging.getLogger('abml')
+rules_logger = logging.getLogger('rules')
 
 _learner_cache = {}
 
@@ -17,7 +21,7 @@ def get_user_id(user):
 def get_learner(user, sessionId):
     key = (get_user_id(user), sessionId)
     if key not in _learner_cache:
-        _learner_cache[key] = abrules.ABRuleLearner()
+        _learner_cache[key] = abrules.ABRuleLearner(evc=False)
     return _learner_cache[key]
 
 def addArgument(learning_data, row_index, user_argument):
@@ -248,6 +252,11 @@ def update_skill_knowledge(user, learning_data, attribute, correct):
     knowledge.P_L = P_L_given_obs + (1 - P_L_given_obs) * P_T
     knowledge.save()
 
+    logger.info(
+        f"[BKT] user={user.username}, attr={attribute}, correct={correct}, "
+        f"P(L): {knowledge.P_L:.3f}"
+    )
+
 def extract_attributes(input_str):
     pattern = r'([\w./]+)\s*(?:<=|>=|=|<|>)?'
     return re.findall(pattern, input_str)
@@ -334,19 +343,24 @@ def criticalInstances(user, domain_name, startNewSession=False, sessionId=None):
 
     learner = get_learner(user, sessionId)
     iteration = getIteration(user, sessionId)
+
+    rules_logger.info(f"=== Iteration {iteration+1} ===")
+    classifier = learner(learning_data)
+    for rule in classifier.rule_list:
+       dist = rule.curr_class_dist.tolist()
+       quality = getattr(rule, "quality", None)
+       rules_logger.info(f"{dist} | {rule} | quality={quality}")
+    
+    # to get CA scores
+    #scores = evaluate.evaluate_learners(rule_learner=learner, data=learning_data)
+    #print(scores)
     
     target_class = learning_data.domain.class_var.name if learning_data.domain.class_var else None
     crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
 
-    # Extract the critical example from the original dataset
-    if iteration < 3:
-        selected_indices = crit_ind[-5:]
-        selected_problematic = problematic[-5:]
-        selected_instances = learning_data[selected_indices]
-    else:
-        selected_indices = crit_ind[:5]
-        selected_problematic = problematic[:5]
-        selected_instances = learning_data[selected_indices]
+    selected_indices = crit_ind[:5]
+    selected_problematic = problematic[:5]
+    selected_instances = learning_data[selected_indices]
 
     domains = get_categorical_and_numerical_attributes(full_data.domain)
 
@@ -363,7 +377,7 @@ def criticalInstances(user, domain_name, startNewSession=False, sessionId=None):
     for index, instance in enumerate(selected_instances):
         critical_instances_list.append({
             "critical_index": str(selected_indices[index]),
-            "problematic": str(round(selected_problematic[index], 3)),
+            "problematic": f"{selected_problematic[index]:.3f}",
             "target_class": str(instance[target_class]),
             "id": str(instance["id"])
         })
@@ -382,7 +396,10 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
     learning_data = update_table_database(learning_data, user, sessionId, user_argument)
     learner = get_learner(user, sessionId)
     try:
-        arg_rule, counters, best_rule = argumentation.analyze_argument(learner, learning_data, int(critical_index))
+        arg_rule, counters, best_rule = argumentation.analyze_argument(learner, 
+                                                                       learning_data, 
+                                                                       int(critical_index), 
+                                                                       user_argument)
         arg_m_score = learner.evaluator_norm.evaluate_rule(arg_rule)
         best_m_score = learner.evaluator_norm.evaluate_rule(best_rule)
 
@@ -390,16 +407,10 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
             best_rule = arg_rule
 
         threshold = 0.1  # allow small difference
-        correct = arg_m_score >= best_m_score - threshold
-        learning_data_object = LearningData.objects.get(user=user, session_id=sessionId)
-        for attr in extract_attributes(user_argument):
-            update_skill_knowledge(user=user,
-                                   learning_data=learning_data_object,
-                                   attribute=attr,
-                                   correct=correct)
+        bkt_correct = arg_m_score >= best_m_score - threshold
             
     except ValueError as e:
-        return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", "", "", ""
+        return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", "", "", "", ""
     
     counter_examples = []
     if counters:
@@ -414,115 +425,4 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
                 "values": values
             })
 
-    return counter_examples, str(arg_rule), str(best_rule), arg_m_score, best_m_score
-
-def main():
-    """
-    Main function, which contains the ABML interactive loop.
-    """
-
-    """
-    path = os.getcwd() + "/backend/orange3_abml_master/orangecontrib/abml/data/"
-    file_path = path + "bonitete_tutor.tab"
-
-    learning_data = Table(file_path)
-    learner = abrules.ABRuleLearner()
-
-    input("Ready to learn? Press enter")
-
-    # MAIN LOOP
-    while True:
-        print("Learning rules...")
-
-        learner.calculate_evds(learning_data)
-        classifier = learner(learning_data)
-
-        # print learned rules
-        for rule in classifier.rule_list:
-            print(rule.curr_class_dist.tolist(), rule, rule.quality)
-        print()
-
-        print("Finding critical examples...")
-        crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
-
-        # Extract the critical example from the original dataset
-        critical_instances = learning_data[crit_ind]
-        print("Critical instances:")
-        for index, instance in enumerate(critical_instances[:5]):
-            print(index+1, " -> ", instance["credit.score"], " ", instance["activity.ime"], " ", problematic[:5][index])
-            
-        # show user 5 critical examples and let him choose
-        while True:
-            selectedInstanceIndex = input("Choose critical example (number between 1 and 5): ")
-    
-            # Check if the input is not a number or not in the specified range
-            if not selectedInstanceIndex.isdigit() or int(selectedInstanceIndex) not in range(1, 6):
-                print("Invalid input. Please choose critical instance between 1 and 5.")
-                continue
-            else:
-                break
-        
-        # selected index is now critical_index
-        critical_index = crit_ind[:5][int(selectedInstanceIndex) - 1]
-
-        while True:
-            # input argument
-            print("Argument input...")
-
-            while True:
-                # take input as argument
-                user_argument = input("Enter argument: ")
-
-                if user_argument in learning_data.domain:
-                    break
-                else:
-                    print("Wrong argument")
-            
-            getIndex = learning_data.domain.index(user_argument)
-            attribute = learning_data.domain[getIndex]
-            if attribute.is_continuous:
-                while True:
-                    sign = input("Enter >= or <= : ")
-                    if sign == ">=" or sign == "<=":
-                        user_argument += sign
-                        break
-
-            # change it to format {argument}
-            formatedArg = "{{{}}}".format(user_argument)
-            # add argument to "Arguments" column in row critical_index
-            addArgument(learning_data, critical_index, formatedArg)
-            learner.calculate_evds(learning_data)
-
-            input("Press enter for argument analysis")
-
-            print("Analysing argument...")
-            counters, counters_vals, rule, prune, best_rule = argumentation.analyze_argument(learner, learning_data, critical_index)
-            
-            if len(counters) > 0:
-                counter_examples = learning_data[list(counters)]
-                print("Counter examples:")
-                for counterEx in counter_examples:
-                    print(counterEx)
-            else:
-                print("No counter examples found for the analyzed example.")
-
-            while True:
-                inp = input("(c)hange argument, (d)one with argumentation (new critical): ")
-                if inp in ('c', 'd'):
-                    break
-            if inp == 'c':
-                removeArgument(learning_data, critical_index)
-            if inp == 'd':
-                # show which critical example was done in this iteration
-                critical_instance = learning_data[critical_index]
-                print("This iteration critical example:", critical_instance)
-                break
-
-        # increment iteration
-        print("Next iteration:")
-        """
-
-    return 0
-
-if __name__ == '__main__':
-    status = main()
+    return counter_examples, str(arg_rule), str(best_rule), arg_m_score, best_m_score, bkt_correct

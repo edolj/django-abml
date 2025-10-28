@@ -1,7 +1,7 @@
 from .utils.main import learningRules, criticalInstances, getCounterExamples
 from .utils.main import setIteration, getIteration, gatherDataToVisualize
 from .utils.main import getAttributes, getExpertAttr, getDisplayNameAttr
-from .utils.main import saveArgumentToDatabase
+from .utils.main import saveArgumentToDatabase, extract_attributes, update_skill_knowledge
 
 from django.http import JsonResponse
 from django.contrib.auth.models import User
@@ -19,6 +19,10 @@ from Orange.data import Table
 import pickle, tempfile, os
 from django.conf import settings
 from openai import OpenAI
+
+import logging
+logger = logging.getLogger('argumentation')
+bkt_logger = logging.getLogger('abml')
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
@@ -55,7 +59,7 @@ def counter_examples(request):
         user_argument = data.get('userArgument')
         sessionId = get_current_session_id(request.user)
 
-        counterExamples, argRule, bestRule, arg_m_score, best_m_score = getCounterExamples(
+        counterExamples, argRule, bestRule, arg_m_score, best_m_score, bkt_correct = getCounterExamples(
             index, user_argument, request.user, sessionId
         )
 
@@ -67,7 +71,8 @@ def counter_examples(request):
             'argRule': argRule,
             'bestRule': bestRule,
             'arg_m_score': arg_m_score,
-            'best_m_score': best_m_score
+            'best_m_score': best_m_score,
+            'bkt_correct': bkt_correct
         })
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -106,6 +111,20 @@ def create_learning_iteration(request):
 
     if serializer.is_valid():
         serializer.save(learning_data=learning_data)
+
+        bkt_correct = data.get("bkt_correct", False)
+        learning_data_object = LearningData.objects.get(user=request.user, session_id=sessionId)
+        
+        for attr in extract_attributes(",".join(user_argument)):
+            update_skill_knowledge(
+                user=request.user,
+                learning_data=learning_data_object,
+                attribute=attr,
+                correct=bkt_correct
+            )
+        bkt_logger.info(f"--Iteration--------------------------")
+        logger.info(data.get("selectedExampleId", ""))
+        logger.info("------------------------------")
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     else:
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

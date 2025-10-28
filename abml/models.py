@@ -89,9 +89,9 @@ class SkillKnowledge(models.Model):
     learning_data = models.ForeignKey(LearningData, on_delete=models.CASCADE)
     attribute = models.CharField(max_length=100)
 
-    P_L = models.FloatField(default=0.1)
-    P_T = models.FloatField(default=0.2)
-    P_G = models.FloatField(default=0.15)
+    P_L = models.FloatField(default=0.2)
+    P_T = models.FloatField(default=0.1)
+    P_G = models.FloatField(default=0.2)
     P_S = models.FloatField(default=0.1)
 
     class Meta:

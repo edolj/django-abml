@@ -1,6 +1,6 @@
 """ Module implements finding critical examples and analysis of arguments.
 """
-
+import logging, re
 import numpy as np
 import Orange
 from . import abrules
@@ -8,6 +8,8 @@ from Orange.data import Table
 from Orange.classification.rules import Rule, Selector
 from sklearn.model_selection import StratifiedKFold
 from scipy.spatial.distance import pdist, squareform
+
+argument_logger = logging.getLogger('argumentation')
 
 ARGUMENTS = "Arguments"
 SIMILAR = 30
@@ -126,7 +128,7 @@ def find_critical(learner, data, n=5, k=5, random_state=0):
 
     return (crit_ind, problematic[crit_ind], None) #[problematic_rules[i] for i in crit_ind])
 
-def analyze_argument(learner, data, index):
+def analyze_argument(learner, data, index, user_argument):
     """
     Analysing argumented example consists of finding counter examples,
     suggesting "safe" or "consistent" conditions and argument pruning.
@@ -141,35 +143,60 @@ def analyze_argument(learner, data, index):
     # learn rules; find best rule for each example (this will be needed to
     # select most relevant counters)
     X, Y, W = data.X, data.Y.astype(dtype=int), data.W if data.W else None
-    clrules = learner(data)
-    predictions = clrules(data, 1)
-    prob_errors = 1 - predictions[range(Y.shape[0]), list(Y)]
-
     learner.target_instances = [index]
-    rules = learner(data).rule_list
+    clrules = learner(data)
+    rules = clrules.rule_list
     learner.target_instances = None
-    
+
     if not rules:
         raise ValueError("No rules generated for the given example.")
     
-    rule = rules[0]
-    original_rule_score = learner.evaluator_norm.evaluate_rule(rule)
-
-    counters = rule.covered_examples & (Y != rule.target_class)
+    covering_rule = rules[0]
+    predictions = clrules(data, 1)
+    prob_errors = 1 - predictions[range(Y.shape[0]), list(Y)]
+    counters = covering_rule.covered_examples & (Y != covering_rule.target_class)
     counters = np.where(counters)[0]
     counter_errs = prob_errors[counters]
     cnt_zip = list(zip(counter_errs, counters))
     cnt_zip.sort()
     if cnt_zip:
-        counters_vals, counters = zip(*cnt_zip)
+        _, counters = zip(*cnt_zip)
+        counters = list(counters)
     else:
-        # Handle the case where no counterexamples were found
-        counters_vals = []
         counters = []
+
+    fold_counters = findCounterExamples(learner, data, index)
+    for x in fold_counters:
+        counters.append(x)
+
+    arguments = [a.strip() for a in user_argument.split(",") if a.strip()]
+    arg_ops = {}
+    arg_values = {}
+
+    for arg in arguments:
+        match = re.match(r'([\w./]+)\s*([<>]=?|=)\s*(.*)', arg)
+        if match:
+            name, op, value = match.groups()
+            arg_ops[name.strip()] = op.strip()
+            arg_values[name.strip()] = value.strip() or None
+        else:
+            arg_ops[arg] = "=="
+            arg_values[arg] = ""
     
-    if len(rule.selectors) == 0:
-        prune = [(None, 0)]
-    else:
+    p1_selectors = []
+    for sel in covering_rule.selectors:
+        attr_name = data.domain.attributes[sel.column].name
+        if attr_name in arg_ops and sel.op == arg_ops[attr_name]:
+            p1_selectors.append(sel)
+
+    rule = Orange.classification.rules.Rule(selectors=p1_selectors, domain=data.domain)
+    rule.filter_and_store(X, Y, W, covering_rule.target_class)
+    rule.prior_class_dist = covering_rule.prior_class_dist
+    rule.create_model()
+    
+    rule_p1_score = learner.evaluator_norm.evaluate_rule(rule)
+    
+    if len(rule.selectors) >= 2:
         prune = []
         for sel in rule.selectors:
             tmp_rule = Orange.classification.rules.Rule(selectors=[r for r in rule.selectors if r != sel],
@@ -180,6 +207,8 @@ def analyze_argument(learner, data, index):
 
             tmp_m_score = learner.evaluator_norm.evaluate_rule(tmp_rule)
             prune.append((tmp_rule, tmp_m_score))
+    else:
+        prune = [(None, 0)]
 
     # Generate extended rules
     unused_attributes = get_unused_attributes(rule, data)
@@ -187,12 +216,14 @@ def analyze_argument(learner, data, index):
     evaluated_extended_rules = evaluate_rules(learner, extended_rules, X, Y, W, rule.target_class)
 
     # Combine all candidates including original
-    candidates = [(rule, original_rule_score)]
+    candidates = [(rule, rule_p1_score)]
     candidates.extend(prune)
     candidates.extend(evaluated_extended_rules)
 
     # Select the best candidate by score
     best_rule, best_score = max(candidates, key=lambda x: x[1])
+
+    argument_logger.info(f"{rule}, m-score={rule_p1_score}, counters={len(counters)}")
 
     return rule, counters, best_rule
 
@@ -268,3 +299,52 @@ def get_categorical_and_numerical_attributes(domain):
             categorical_and_numerical_attributes.append(attribute)
     return categorical_and_numerical_attributes
 
+def findCounterExamples(learner, data, index):
+    X, Y, W = data.X, data.Y.astype(dtype=int), data.W if data.W else None
+    skf = StratifiedKFold(n_splits=4, shuffle=True, random_state=0)
+    all_fold_rules = []
+    all_counters = set()
+
+    for fold_i, (train_idx, test_idx) in enumerate(skf.split(X, Y), start=1):
+        # argumented instance stays in training
+        if index not in train_idx:
+            train_idx = np.append(train_idx, index)
+            test_idx = np.array([i for i in test_idx if i != index])
+
+        train = data[train_idx]
+        test = data[test_idx]
+
+        # compute the local index of the argumented example within 'train'
+        local_index = np.where(train_idx == index)[0][0]
+
+        # now focus learner on the local index
+        learner.target_instances = [local_index]
+        learner.analyse_argument = train[local_index]
+        clf = learner(train)
+        learner.target_instances = None
+        learner.analyse_argument = None
+
+        if not clf.rule_list:
+            print(f"Fold {fold_i}: No rules learned.")
+            continue
+
+        rule_fold = clf.rule_list[0]
+        all_fold_rules.append(rule_fold)
+
+        # find counterexamples from test set
+        test_cov = rule_fold.evaluate_data(test.X)
+        counter_mask = test_cov & (test.Y != rule_fold.target_class)
+        test_counters = np.where(counter_mask)[0]
+        global_counters = test_idx[test_counters]
+        all_counters.update(global_counters)
+
+        #print(f"------------------------------\nFold {fold_i}")
+        #print("Rules:")
+        #print(f"{rule_fold}  m={rule_fold.quality:.3f}")
+        #if len(test_counters):
+        #    names = [str(test[i]["id"]) for i in test_counters]
+        #    print("counter examples=", ", ".join(names))
+        #else:
+        #    print("counter examples=none")
+
+    return all_counters

@@ -168,3 +168,55 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Set limit 20MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'bkt_updates.log'),
+            'formatter': 'verbose',
+        },
+        'argumentation_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'argumentation.log'),
+            'formatter': 'verbose',
+        },
+        'rules_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'rules.log'),
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'abml': {
+            'handlers': ['file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'argumentation': {
+            'handlers': ['argumentation_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'rules': {
+            'handlers': ['rules_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        '': {
+            'handlers': ['file'],
+            'level': 'WARNING',
+        },
+    },
+}
