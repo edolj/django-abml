@@ -1,3 +1,5 @@
 django-env/lib/python3.9/site-packages/psycopg2
 django-env/lib/python3.9/site-packages/psycopg2_binary-2.9.9.dist-info
+django-env/bin
+django-env/pyvenv.cfg
 .env

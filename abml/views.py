@@ -12,11 +12,13 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Domain, DomainSerializer, RegisterSerializer
-from .models import LearningData, LearningDataSerializer, LearningIterationSerializer
+from .models import LearningData, LearningDataSerializer
+from .models import LearningIteration, LearningIterationSerializer
 from .models import SkillKnowledge, SkillKnowledgeSerializer
 
 from Orange.data import Table
 import pickle, tempfile, os
+from django.db.models import Max, Prefetch
 from django.conf import settings
 from openai import OpenAI
 
@@ -131,15 +133,24 @@ def create_learning_iteration(request):
 
 @api_view(['GET'])
 def get_learning_iterations(request):
-    all_data = LearningData.objects.all().select_related('user').prefetch_related('iterations')
-    result = []
+    all_data = (
+        LearningData.objects.all()
+        .annotate(latest_iteration=Max('iterations__timestamp'))
+        .select_related('user')
+        .prefetch_related(
+            Prefetch('iterations', queryset=LearningIteration.objects.order_by('iteration_number'))
+        )
+        .order_by('-latest_iteration')
+    )
 
+    result = []
     for ld in all_data:
-        iterations = ld.iterations.all().order_by('iteration_number')
+        iterations = ld.iterations.all()  # already ordered, no extra query
         serializer = LearningIterationSerializer(iterations, many=True)
         result.append({
             "username": ld.user.username,
             "domain_name": ld.name,
+            "display_names": ld.display_names,
             "iterations": serializer.data,
         })
 

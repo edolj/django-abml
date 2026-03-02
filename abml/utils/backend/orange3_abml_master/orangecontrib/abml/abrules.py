@@ -5,8 +5,8 @@ import pickle, re, os
 from warnings import warn
 from copy import copy
 import numpy as np
-#from orangecontrib.evcrules.rules import RulesStar
-from ....orange3_evcrules_master.orangecontrib.evcrules.rules import RulesStar
+from orangecontrib.evcrules.rules import RulesStar
+#from ....orange3_evcrules_master.orangecontrib.evcrules.rules import RulesStar
 from Orange.classification.rules import Rule, Selector
 from Orange.data import Table
 

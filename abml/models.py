@@ -36,7 +36,7 @@ class LearningIteration(models.Model):
     iteration_number = models.IntegerField()
     chosen_arguments = ArrayField(models.CharField(max_length=100))
     mScore = models.FloatField(default=0.0)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
 
     def __str__(self):
         return f"{self.learning_data.user.username} - Iteration {self.iteration_number}"
