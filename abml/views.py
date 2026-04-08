@@ -379,7 +379,7 @@ def get_summary(request):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-5",
+            model="gpt-5-mini",
             messages=[system_message, user_message],
         )
         summary = response.choices[0].message.content
