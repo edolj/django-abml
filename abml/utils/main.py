@@ -406,8 +406,13 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
         if arg_m_score > best_m_score:
             best_rule = arg_rule
 
-        threshold = 0.1  # allow small difference
-        bkt_correct = arg_m_score >= best_m_score - threshold
+        relative_threshold = 0.1 # allow small difference
+        master_threshold = 0.75
+
+        bkt_correct = (
+            arg_m_score >= best_m_score - relative_threshold
+            or arg_m_score >= master_threshold
+        )
             
     except ValueError as e:
         return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", "", "", "", ""
