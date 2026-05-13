@@ -158,7 +158,7 @@ def analyze_argument(learner, data, index, user_argument):
     counters = np.where(counters)[0]
     counter_errs = prob_errors[counters]
     cnt_zip = list(zip(counter_errs, counters))
-    cnt_zip.sort()
+    cnt_zip.sort(reverse=True)
     if cnt_zip:
         counters_vals, counters = zip(*cnt_zip)
         counters = list(counters)
@@ -330,7 +330,6 @@ def build_rule_from_user_args(rule, user_args, data, X, Y, W):
 def findCounterExamples(learner, data, index):
     X, Y, W = data.X, data.Y.astype(dtype=int), data.W if data.W else None
     skf = StratifiedKFold(n_splits=4, shuffle=True, random_state=0)
-    all_fold_rules = []
     all_counters = set()
 
     for fold_i, (train_idx, test_idx) in enumerate(skf.split(X, Y), start=1):
@@ -357,7 +356,6 @@ def findCounterExamples(learner, data, index):
             continue
 
         rule_fold = clf.rule_list[0]
-        all_fold_rules.append(rule_fold)
 
         # find counterexamples from test set
         test_cov = rule_fold.evaluate_data(test.X)
@@ -375,4 +373,14 @@ def findCounterExamples(learner, data, index):
         #else:
         #    print("counter examples=none")
 
-    return all_counters
+    # compute distances between examples
+    dist_matrix = squareform(pdist(data.X, metric="seuclidean"))
+
+    # sort by similarity to target example
+    sorted_counters = sorted(
+        all_counters,
+        key=lambda i: dist_matrix[index][i]
+    )
+
+    return sorted_counters
+
