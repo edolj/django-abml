@@ -401,19 +401,8 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
                                                                        int(critical_index), 
                                                                        user_argument)
 
-        print("arg_rule:", arg_rule)
-        print("best_rule:", best_rule)
-        print("counters:", counters)
-
         arg_m_score = learner.evaluator_norm.evaluate_rule(arg_rule)
-        print("---------")
         best_m_score = learner.evaluator_norm.evaluate_rule(best_rule)
-
-        print("Argument rule:", arg_rule)
-        print("Argument M-score:", arg_m_score)
-
-        print("Best rule:", best_rule)
-        print("Best M-score:", best_m_score)
 
         if arg_m_score > best_m_score:
             best_rule = arg_rule
