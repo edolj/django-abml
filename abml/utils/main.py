@@ -44,7 +44,7 @@ def add_arguments_meta_column(data: Table) -> Table:
         return data
 
     arguments_var = StringVariable("Arguments")
-    new_domain = Domain(
+    new_domain = OrangeDomain(
         data.domain.attributes,
         data.domain.class_var,
         metas=[arguments_var] + list(data.domain.metas)
@@ -400,8 +400,20 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
                                                                        learning_data, 
                                                                        int(critical_index), 
                                                                        user_argument)
+
+        print("arg_rule:", arg_rule)
+        print("best_rule:", best_rule)
+        print("counters:", counters)
+
         arg_m_score = learner.evaluator_norm.evaluate_rule(arg_rule)
+        print("---------")
         best_m_score = learner.evaluator_norm.evaluate_rule(best_rule)
+
+        print("Argument rule:", arg_rule)
+        print("Argument M-score:", arg_m_score)
+
+        print("Best rule:", best_rule)
+        print("Best M-score:", best_m_score)
 
         if arg_m_score > best_m_score:
             best_rule = arg_rule
@@ -413,7 +425,7 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
             arg_m_score >= best_m_score - relative_threshold
             or arg_m_score >= master_threshold
         )
-            
+
     except ValueError as e:
         return {"error": "Something went wrong with analyzing arguments.. " + str(e)}, "", "", "", "", ""
     
