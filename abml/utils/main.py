@@ -399,7 +399,8 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
         arg_rule, counters, best_rule = argumentation.analyze_argument(learner, 
                                                                        learning_data, 
                                                                        int(critical_index), 
-                                                                       user_argument)
+                                                                       user_argument,
+                                                                       full_data)
 
         arg_m_score = learner.evaluator_norm.evaluate_rule(arg_rule)
         best_m_score = learner.evaluator_norm.evaluate_rule(best_rule)
