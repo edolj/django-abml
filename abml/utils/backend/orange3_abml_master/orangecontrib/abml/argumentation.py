@@ -174,7 +174,8 @@ def analyze_argument(learner, data, index, user_argument, full_data):
 
     fold_counters = findCounterExamples(learner, data, index)
     for x in fold_counters:
-        counters.append(x)
+        if x not in counters:
+            counters.append(x)
 
     rule = build_rule_from_user_args(covering_rule, user_argument, data, X, Y, W)
     current_m_score = learner.evaluator_norm.evaluate_rule(rule)
