@@ -128,7 +128,7 @@ def find_critical(learner, data, n=5, k=5, random_state=0):
 
     return (crit_ind, problematic[crit_ind], None) #[problematic_rules[i] for i in crit_ind])
 
-def analyze_argument(learner, data, index, user_argument, full_data):
+def analyze_argument(learner, data, index, user_argument):
     """
     Analysing argumented example consists of finding counter examples,
     suggesting "safe" or "consistent" conditions and argument pruning.
@@ -159,7 +159,6 @@ def analyze_argument(learner, data, index, user_argument, full_data):
 
     #print("Covering rule:")
     #print(f"{covering_rule}  m={covering_rule.quality:.3f}")
-    #print(len(counters))
 
     counter_errs = prob_errors[counters]
     cnt_zip = list(zip(counter_errs, counters))
@@ -199,11 +198,9 @@ def analyze_argument(learner, data, index, user_argument, full_data):
     best_pruned_rule, best_pruned_score = max(prune, key=lambda x: x[1])
 
     # Extending the full rule with new attributes
-    unused_attributes = get_unused_attributes(rule, data)
-    
-    tRule = translate_rule(rule, full_data.domain)
-    extended_rules = generateExtendedRules(tRule, unused_attributes, full_data, index, max_depth=1)
-    evaluated_extended_rules = evaluate_rules(learner, extended_rules, full_data, tRule.target_class)
+    #unused_attributes = get_unused_attributes(rule, data)
+    extended_rules = generateExtendedRules(rule, data, index, max_depth=1)
+    evaluated_extended_rules = evaluate_rules(learner, extended_rules, X, Y, W, rule.target_class)
     # Determine the best extended rule
     best_extended_rule, best_extended_score = max(evaluated_extended_rules, key=lambda x: x[1])
     
@@ -217,39 +214,20 @@ def analyze_argument(learner, data, index, user_argument, full_data):
 
     return rule, counters, best_rule
 
-def translate_rule(rule, target_domain):
-    new_selectors = []
-    for sel in rule.selectors:
-        old_attr = rule.domain[sel.column]
-        new_column = target_domain.index(old_attr.name)
-
-        new_selector = Selector(
-            column=new_column,
-            op=sel.op,
-            value=sel.value
-        )
-        new_selectors.append(new_selector)
-
-    new_rule = Rule(
-        selectors=new_selectors,
-        domain=target_domain,
-        prior_class_dist=rule.prior_class_dist
-    )
-    return new_rule
-
 def get_unused_attributes(rule, data):
     attUsed = []
     for sel in rule.selectors:
         attUsed.append(data.domain[sel.column])
 
     class_var = data.domain.class_var
-    attributes = get_categorical_and_numerical_attributes(data.domain)
+    attributes = get_categorical_and_numerical_attributes(data.domain.attributes)
     filtered_attributes = [attr for attr in attributes if attr not in attUsed and attr != class_var]
 
     return filtered_attributes
 
-def generate_one_step_extensions(rule, unused_att, data, index):
+def generate_one_step_extensions(rule, data, index):
     ext_rules = []
+    unused_att = get_unused_attributes(rule, data)
 
     for att in unused_att:
         column = data.domain.index(att)
@@ -290,7 +268,7 @@ def generate_one_step_extensions(rule, unused_att, data, index):
 
     return ext_rules
 
-def generateExtendedRules(rule, unused_att, data, index, max_depth=1):
+def generateExtendedRules(rule, data, index, max_depth=1):
     all_rules = []
     current_level = [rule]
 
@@ -298,7 +276,7 @@ def generateExtendedRules(rule, unused_att, data, index, max_depth=1):
         next_level = []
 
         for parent_rule in current_level:
-            children = generate_one_step_extensions(parent_rule, unused_att, data, index)
+            children = generate_one_step_extensions(parent_rule, data, index)
             next_level.extend(children)
 
         all_rules.extend(next_level)
@@ -306,8 +284,7 @@ def generateExtendedRules(rule, unused_att, data, index, max_depth=1):
 
     return all_rules
 
-def evaluate_rules(learner, rules, full_data, target_class):
-    X, Y, W = full_data.X, full_data.Y.astype(dtype=int), full_data.W if full_data.W else None
+def evaluate_rules(learner, rules, X, Y, W, target_class):
     evaluated_rules = [(None, 0)]
     for rule in rules:
         rule.filter_and_store(X, Y, W, target_class)
