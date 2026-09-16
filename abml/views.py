@@ -354,6 +354,8 @@ def get_summary(request):
         "content": (
             "You are a tutor in an argument-based learning system. "
             "Provide a short summary for the learner. "
+            "Write the entire summary in Slovenian. "
+            "Use natural, clear, and simple Slovenian appropriate for a learner. "
             "Explain clearly and simply:\n"
             f"- Why the example was classified as it was.\n"
             f"- How the selected arguments:\n{readable_arguments_text}\nsupport this classification.\n"
