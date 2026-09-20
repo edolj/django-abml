@@ -21,7 +21,7 @@ def get_user_id(user):
 def get_learner(user, sessionId):
     key = (get_user_id(user), sessionId)
     if key not in _learner_cache:
-        _learner_cache[key] = abrules.ABRuleLearner(evc=False)
+        _learner_cache[key] = abrules.ABRuleLearner(evc=False, m=2, parent_alpha=0.05)
     return _learner_cache[key]
 
 def addArgument(learning_data, row_index, user_argument):
@@ -32,7 +32,7 @@ def addArgument(learning_data, row_index, user_argument):
         return False
     
     old_val = learning_data[row_index][arguments_var]
-    if old_val in (None, ""):
+    if str(old_val).strip() in ("", "?", "nan", "None"):
         learning_data[row_index][arguments_var] = user_argument
     else:
         learning_data[row_index][arguments_var] = f"{old_val},{user_argument}"
@@ -396,7 +396,7 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
     learning_data = update_table_database(learning_data, user, sessionId, user_argument)
     learner = get_learner(user, sessionId)
     try:
-        arg_rule, counters, best_rule = argumentation.analyze_argument(learner, 
+        counters, arg_rule, best_rule = argumentation.analyze_argument(learner, 
                                                                        learning_data, 
                                                                        int(critical_index), 
                                                                        user_argument)

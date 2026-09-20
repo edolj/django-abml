@@ -73,7 +73,7 @@ class LRRulesLearner(Learner):
         for pp in self.post_rule_preprocess:
             data = pp(data)
         # create data
-        X, Y, W = data.X, data.Y, data.W if data.W else None
+        X, Y, W = data.X, data.Y, data.W if data.W.size > 0 else None
         # 1. add rules to X
         Xr = np.concatenate([X]+[r.covered_examples[:, np.newaxis] for r in rules],
                             axis=1)

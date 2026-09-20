@@ -116,7 +116,7 @@ class ABRuleLearner(RulesStar):
         return rule, unfinished
 
     def specialize(self, rule, unfinished_selectors, data, instance_index):
-        X, Y, W = data.X, data.Y, data.W if data.W else None
+        X, Y, W = data.X, data.Y, data.W if data.W.size > 0 else None
         Y = Y.astype(dtype=int)
 
         rule.general_validator = self.rule_finder.general_validator
@@ -162,7 +162,7 @@ class ABRuleLearner(RulesStar):
     @staticmethod
     def parse_constraint(att_cons, data, inst):
         """ Parsing conditions in arguments. """
-        sp = re.split('>=|<=', att_cons)
+        sp = re.split('>=|<=|>|<', att_cons)
         if len(sp) == 1:
             neg = att_cons.startswith("~")
             if neg:

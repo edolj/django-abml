@@ -142,41 +142,32 @@ def analyze_argument(learner, data, index, user_argument):
 
     # learn rules; find best rule for each example (this will be needed to
     # select most relevant counters)
-    X, Y, W = data.X, data.Y.astype(dtype=int), data.W if data.W else None
-    learner.target_instances = [index]
+    X, Y, W = data.X, data.Y.astype(dtype=int), data.W if data.W.size > 0 else None
     clrules = learner(data)
-    rules = clrules.rule_list
-    learner.target_instances = None
+    predictions = clrules(data, 1)
+    prob_errors = 1 - predictions[range(Y.shape[0]), list(Y)]
+
+    # learn a rule that covers the argumented example
+    learner.target_instances = [index]
+    try:
+        rules = learner(data).rule_list
+    finally:
+        learner.target_instances = None
 
     if not rules:
         raise ValueError("No rules generated for the given example.")
     
     covering_rule = rules[0]
-    predictions = clrules(data, 1)
-    prob_errors = 1 - predictions[range(Y.shape[0]), list(Y)]
-    counters = covering_rule.covered_examples & (Y != covering_rule.target_class)
-    counters = np.where(counters)[0]
-
-    #print("Covering rule:")
-    #print(f"{covering_rule}  m={covering_rule.quality:.3f}")
-
-    counter_errs = prob_errors[counters]
-    cnt_zip = list(zip(counter_errs, counters))
-    cnt_zip.sort(reverse=True)
-    if cnt_zip:
-        counters_vals, counters = zip(*cnt_zip)
-        counters = list(counters)
-    else:
-        # Handle the case where no counterexamples were found
-        counters_vals = []
-        counters = []
-
-    fold_counters = findCounterExamples(learner, data, index)
-    for x in fold_counters:
-        if x not in counters:
-            counters.append(x)
-
     rule = build_rule_from_user_args(covering_rule, user_argument, data, X, Y, W)
+    if rule is None:
+        raise ValueError("Argument does not match the covering rule. Please change argument.")
+
+    # counter examples: opposite class examples covered by the argument rule
+    counters = rule.covered_examples & (Y != rule.target_class)
+    counters = np.where(counters)[0]
+    cnt_zip = sorted(zip(prob_errors[counters], counters))
+    counters = [int(c) for _, c in cnt_zip]
+
     current_m_score = learner.evaluator_norm.evaluate_rule(rule)
     
     prune = []
@@ -212,7 +203,7 @@ def analyze_argument(learner, data, index, user_argument):
     # Output the best rule based on the highest M-score
     best_rule, best_score = max(candidates, key=lambda x: x[1])
 
-    return rule, counters, best_rule
+    return counters, rule, best_rule
 
 def get_unused_attributes(rule, data):
     attUsed = []
@@ -301,18 +292,25 @@ def get_categorical_and_numerical_attributes(domain):
     return categorical_and_numerical_attributes
 
 def build_rule_from_user_args(rule, user_args, data, X, Y, W):
+    # user can enter > ali <, rules use >= in <=
+    user_args = re.sub(r'>(?!=)', '>=', user_args)
+    user_args = re.sub(r'<(?!=)', '<=', user_args)
+
+    tokens = [t.strip().strip("{} ") for t in user_args.split(",")]
+    
     selected_selectors = []
 
     for s in rule.selectors:
         attr = data.domain[s.column]
 
         if attr.is_discrete:
-            if attr.name in user_args:
+            if attr.name in tokens:
                 selected_selectors.append(s)
 
         else:  # continuous
             key = f"{attr.name}{s.op}"
-            if key in user_args:
+            pattern = re.escape(key) + r'[-+]?\d*\.?\d*(?:[eE][-+]?\d+)?'
+            if any(re.fullmatch(pattern, t) for t in tokens):
                 selected_selectors.append(s)
 
     if not selected_selectors:
@@ -331,61 +329,4 @@ def build_rule_from_user_args(rule, user_args, data, X, Y, W):
     new_rule.create_model()
 
     return new_rule
-
-def findCounterExamples(learner, data, index):
-    X, Y, W = data.X, data.Y.astype(dtype=int), data.W if data.W else None
-    skf = StratifiedKFold(n_splits=4, shuffle=True, random_state=0)
-    all_counters = set()
-
-    for fold_i, (train_idx, test_idx) in enumerate(skf.split(X, Y), start=1):
-        # argumented instance stays in training
-        if index not in train_idx:
-            train_idx = np.append(train_idx, index)
-            test_idx = np.array([i for i in test_idx if i != index])
-
-        train = data[train_idx]
-        test = data[test_idx]
-
-        # compute the local index of the argumented example within 'train'
-        local_index = np.where(train_idx == index)[0][0]
-
-        # now focus learner on the local index
-        learner.target_instances = [local_index]
-        learner.analyse_argument = train[local_index]
-        clf = learner(train)
-        learner.target_instances = None
-        learner.analyse_argument = None
-
-        if not clf.rule_list:
-            print(f"Fold {fold_i}: No rules learned.")
-            continue
-
-        rule_fold = clf.rule_list[0]
-
-        # find counterexamples from test set
-        test_cov = rule_fold.evaluate_data(test.X)
-        counter_mask = test_cov & (test.Y != rule_fold.target_class)
-        test_counters = np.where(counter_mask)[0]
-        global_counters = test_idx[test_counters]
-        all_counters.update(global_counters)
-
-        #print(f"------------------------------\nFold {fold_i}")
-        #print("Rules:")
-        #print(f"{rule_fold}  m={rule_fold.quality:.3f}")
-        #if len(test_counters):
-        #    names = [str(test[i]["id"]) for i in test_counters]
-        #    print("counter examples=", ", ".join(names))
-        #else:
-        #    print("counter examples=none")
-
-    # compute distances between examples
-    dist_matrix = squareform(pdist(data.X, metric="seuclidean"))
-
-    # sort by similarity to target example
-    sorted_counters = sorted(
-        all_counters,
-        key=lambda i: dist_matrix[index][i]
-    )
-
-    return sorted_counters
 

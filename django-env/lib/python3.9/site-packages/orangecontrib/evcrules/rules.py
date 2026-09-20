@@ -66,7 +66,7 @@ class RulesStar(_RuleLearner):
         self.to_calc_evds = to_calc_evds
 
     def fit_storage(self, data):
-        X, Y, W = data.X, data.Y, data.W if data.W else None
+        X, Y, W = data.X, data.Y, data.W if data.W.size > 0 else None
         Y = Y.astype(dtype=int)
 
         # estimate extreme value distributions (if necessary)
@@ -84,7 +84,7 @@ class RulesStar(_RuleLearner):
         # create initial star
         star = self.create_initial_star(X, Y, W, prior)
         # use visited to prevent learning the same rule all over again
-        visited = set((r.covered_examples.tostring(), r.target_class) for r in star)
+        visited = set((r.covered_examples.tobytes(), r.target_class) for r in star)
         # update best rule
         bestr = np.empty(X.shape[0], dtype=object)
         bestq = np.zeros(X.shape[0], dtype=float)
@@ -107,7 +107,7 @@ class RulesStar(_RuleLearner):
                 for nr in rules:
                     nr.default_rule = nr.parent_rule.default_rule
                     nr.do_evaluate()
-                    rkey = (nr.covered_examples.tostring(), nr.target_class)
+                    rkey = (nr.covered_examples.tobytes(), nr.target_class)
                     if (rkey not in visited and
                             self.rule_finder.general_validator.validate_rule(nr) and
                             nr.quality >= nr.parent_rule.quality):
@@ -234,7 +234,7 @@ class RulesStar(_RuleLearner):
 
     @staticmethod
     def add_rule(rule_list, visited, rule):
-        rkey = (rule.covered_examples.tostring(), rule.target_class)
+        rkey = (rule.covered_examples.tobytes(), rule.target_class)
         if rkey not in visited:
             rule.create_model()
             rule_list.append(rule)
@@ -570,7 +570,7 @@ class EVDFitter(RulesStar):
         self.rule_finder.general_validator = LengthValidator(self.max_rule_length)
 
     def fit_storage(self, data): #X, Y, W=None):
-        X, Y, W = data.X, data.Y, data.W if data.W else None
+        X, Y, W = data.X, data.Y, data.W if data.W.size > 0 else None
         Y = Y.astype(dtype=int)
         np.random.seed(self.seed)
         evd = {}
