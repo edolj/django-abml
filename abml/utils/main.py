@@ -409,7 +409,7 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
             best_rule = arg_rule
 
         relative_threshold = 0.1 # allow small difference
-        master_threshold = 0.75
+        master_threshold = 0.85
 
         bkt_correct = (
             arg_m_score >= best_m_score - relative_threshold
