@@ -2,6 +2,7 @@ from .utils.main import learningRules, criticalInstances, getCounterExamples
 from .utils.main import setIteration, getIteration, gatherDataToVisualize
 from .utils.main import getAttributes, getExpertAttr, getDisplayNameAttr
 from .utils.main import saveArgumentToDatabase, extract_attributes, update_skill_knowledge
+from .utils.main import logTestScores
 
 from django.http import JsonResponse
 from django.contrib.auth.models import User
@@ -18,6 +19,7 @@ from .models import SkillKnowledge, SkillKnowledgeSerializer
 
 from Orange.data import Table
 import pickle, tempfile, os
+from sklearn.model_selection import train_test_split
 from django.db.models import Max, Prefetch
 from django.conf import settings
 from openai import OpenAI
@@ -102,6 +104,11 @@ def create_learning_iteration(request):
     user_argument = data.get("chosen_arguments")
     sessionId = get_current_session_id(request.user)
     saveArgumentToDatabase(critical_index, user_argument, request.user, sessionId)
+
+    try:
+        logTestScores(request.user, sessionId)
+    except Exception as e:
+        logger.warning(f"[TEST] merjenje ni uspelo: {e}")
 
     serializer = LearningIterationSerializer(data={
         "learning_data": learning_data.id,
@@ -246,7 +253,13 @@ def upload_domain(request):
             temp_file_path = temp_file.name
 
         table = Table(temp_file_path)
-        binary_data = pickle.dumps(table)
+        idx = list(range(len(table)))
+        learn_idx, test_idx = train_test_split(
+            idx, test_size=0.3, stratify=table.Y, random_state=0
+        )
+        learn_table = table[learn_idx]
+        test_table = table[test_idx]
+        
         all_attrs = list(table.domain.attributes) + list(table.domain.metas)
         if table.domain.class_var is not None:
             all_attrs.append(table.domain.class_var)
@@ -257,7 +270,8 @@ def upload_domain(request):
 
         # Save to DB
         Domain.objects.create(name=name, 
-                              data=binary_data, 
+                              data=pickle.dumps(learn_table),
+                              test_data=pickle.dumps(test_table),
                               attributes=attribute_names, 
                               expert_attributes=[],
                               display_names=display_names,

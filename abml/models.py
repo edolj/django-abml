@@ -54,6 +54,7 @@ class Domain(models.Model):
     display_names = models.JSONField(default=dict, blank=True)
     attr_descriptions = models.JSONField(default=dict, blank=True)
     attr_tooltips = models.JSONField(default=dict, blank=True)
+    test_data = models.BinaryField(null=True)
 
     def __str__(self):
         return self.name

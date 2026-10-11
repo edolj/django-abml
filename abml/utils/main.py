@@ -3,6 +3,8 @@
 __author__ = 'edo'
 
 import logging, re, pickle
+import numpy as np
+from sklearn.metrics import roc_auc_score
 from Orange.data import Table, Domain as OrangeDomain, ContinuousVariable, StringVariable
 from Orange.classification.rules import Rule, Selector
 from .backend.orange3_abml_master.orangecontrib.abml import abrules, argumentation
@@ -111,7 +113,10 @@ def setLearningData(user, domain_name):
     attr_descriptions = domain.attr_descriptions
     attr_tooltips = domain.attr_tooltips
 
+    attr_names = {a.name for a in table.domain.attributes}
     for attribute in inactive_attributes:
+        if attribute not in attr_names:
+            continue
         table = mark_attribute_as_meta(table, attribute)
 
     serialized_data = serialize_table(table)
@@ -351,10 +356,6 @@ def criticalInstances(user, domain_name, startNewSession=False, sessionId=None):
        quality = getattr(rule, "quality", None)
        rules_logger.info(f"{dist} | {rule} | quality={quality}")
     
-    # to get CA scores
-    #scores = evaluate.evaluate_learners(rule_learner=learner, data=learning_data)
-    #print(scores)
-    
     target_class = learning_data.domain.class_var.name if learning_data.domain.class_var else None
     crit_ind, problematic, problematic_rules = argumentation.find_critical(learner, learning_data)
 
@@ -432,3 +433,23 @@ def getCounterExamples(critical_index, user_argument, user, sessionId):
             })
 
     return counter_examples, str(arg_rule), str(best_rule), arg_m_score, best_m_score, bkt_correct
+
+def logTestScores(user, sessionId):
+    entry = LearningData.objects.get(user=user, session_id=sessionId)
+    domain = Domain.objects.get(name=entry.name)
+    if not domain.test_data:
+        return
+    learning_data = deserialize_table(entry.data)
+    test = deserialize_table(domain.test_data).transform(learning_data.domain)
+
+    classifier = get_learner(user, sessionId)(learning_data)
+    probs = classifier(test, 1)
+    y = test.Y.astype(int)
+
+    ca = np.mean(np.argmax(probs, axis=1) == y)
+    brier = np.mean(np.sum((probs - np.eye(probs.shape[1])[y]) ** 2, axis=1))
+    auc = roc_auc_score(y, probs[:, 1])
+
+    rules_logger.info(f"[TEST] user={user.username} it={entry.iteration} "
+                      f"CA={ca:.3f} AUC={auc:.3f} Brier={brier:.3f} ")
+

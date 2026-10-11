@@ -84,9 +84,9 @@ CORS_ALLOW_CREDENTIALS = True
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'abml_db',           # Edit PostgreSQL database name
-        'USER': 'postgres',
-        'PASSWORD': 'postgres',
+        'NAME': 'postgres',           # Edit PostgreSQL database name
+        'USER': 'edo.ljubijankic',
+        'PASSWORD': '',
         'HOST': '127.0.0.1',         # For local development
         'PORT': '5432',              # Default PostgreSQL port
     }
