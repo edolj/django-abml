@@ -62,6 +62,7 @@ class LRRulesLearner(Learner):
         self.post_rule_preprocess = [Normalize(), Continuize()]
 
     def fit_storage(self, data):
+        self.domain = data.domain
         if self.opt_penalty:
             self.penalty = self.tune_penalty(data)
         # learn rules
@@ -174,7 +175,7 @@ class LRRulesLearner(Learner):
     def phi(t):
         # logistic function, returns 1 / (1 + exp(-t))
         idx = t > 0
-        out = np.empty(t.size, dtype=np.float)
+        out = np.empty(t.size, dtype=float)
         out[idx] = 1. / (1 + np.exp(-t[idx]))
         exp_t = np.exp(t[~idx])
         out[~idx] = exp_t / (1. + exp_t)
@@ -233,7 +234,7 @@ class LRRulesClassifier(Model):
 
     def predict_proba(self, X):
         ps = np.empty((X.shape[0], len(self.domain.class_var.values)),
-                      dtype=np.float)
+                      dtype=float)
         for i, _ in enumerate(self.domain.class_var.values):
             z = X.dot(self.w[i])
             ps[:, i] = LRRulesLearner.phi(z)
