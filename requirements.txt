@@ -1,0 +1,22 @@
+# Python 3.9
+# Namestitev:  python3.9 -m venv django-env && source django-env/bin/activate
+#              pip install -r requirements.txt
+
+# Strežnik
+Django==4.2.11
+djangorestframework==3.15.1
+django-cors-headers==4.3.1
+psycopg2-binary==2.9.9
+python-dotenv
+openai
+
+# Strojno učenje (preizkušeno s temi različicami)
+Orange3==3.36.2
+numpy==1.26.4
+scipy==1.13.0
+scikit-learn==1.3.2
+Bottleneck==1.3.8
+
+# Dodatka ABML (iz tega repozitorija)
+-e ./abml/utils/backend/orange3_evcrules_master
+-e ./abml/utils/backend/orange3_abml_master

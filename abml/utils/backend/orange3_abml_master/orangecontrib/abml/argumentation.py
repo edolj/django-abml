@@ -165,8 +165,8 @@ def analyze_argument(learner, data, index, user_argument):
     # counter examples: opposite class examples covered by the argument rule
     counters = rule.covered_examples & (Y != rule.target_class)
     counters = np.where(counters)[0]
-    cnt_zip = sorted(zip(prob_errors[counters], counters))
-    counters = [int(c) for _, c in cnt_zip]
+    dist_matrix = squareform(pdist(X, metric="seuclidean"))
+    counters = sorted((int(c) for c in counters), key=lambda i: dist_matrix[index][i])
 
     current_m_score = learner.evaluator_norm.evaluate_rule(rule)
     
